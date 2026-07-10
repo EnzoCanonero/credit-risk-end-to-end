@@ -36,7 +36,7 @@ SELECT
   SUM(CASE WHEN int_rate IS NULL THEN 1 ELSE 0 END) AS missing_int_rate,
   SUM(CASE WHEN grade IS NULL THEN 1 ELSE 0 END) AS missing_grade,
   SUM(CASE WHEN annual_inc IS NULL THEN 1 ELSE 0 END) AS missing_annual_inc,
-  SUM(CASE WHEN issue_d IS NULL THEN 1 ELSE 0 END) AS missing_issue_d,
+  SUM(CASE WHEN issue_month IS NULL THEN 1 ELSE 0 END) AS missing_issue_month,
   SUM(CASE WHEN loan_status IS NULL THEN 1 ELSE 0 END) AS missing_loan_status,
   SUM(CASE WHEN target_bad IS NULL THEN 1 ELSE 0 END) AS missing_target_bad
 FROM stg.loans_clean;

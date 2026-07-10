@@ -8,8 +8,8 @@ SELECT
   int_rate,
   grade,
   annual_inc,
-  issue_d,
   loan_status,
+  try_strptime(issue_d, '%b-%Y')::DATE AS issue_month,
 
   CASE
     WHEN loan_status = 'Charged Off' THEN 1
