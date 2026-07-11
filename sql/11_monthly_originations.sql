@@ -21,11 +21,11 @@ SELECT
     2
    ) AS month_share_pct,
 
-  ROUND( 
-    AVG(loans) OVER( 
+  ROUND(
+    AVG(loans) OVER(
       ORDER BY issue_month
       ROWS BETWEEN 2 PRECEDING AND CURRENT ROW
-      ) * 100,
+      ),
       2
     ) AS loans_3_month_avg,
    

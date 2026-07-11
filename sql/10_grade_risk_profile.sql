@@ -20,15 +20,15 @@ SELECT
   ROUND(
     loans * 100 / SUM(loans) OVER (),
     2
-  ) AS grade_shate_pct,
+  ) AS grade_share_pct,
 
   ROUND(
     bad_rate * 100 - ( SUM(bad_loans) OVER () * 100 ) / SUM(loans) OVER(),
     2
   ) AS bad_rate_vs_portfolio_pct,
 
-  RANK() OVER( 
-    ORDER BY grade DESC
+  RANK() OVER(
+    ORDER BY bad_rate DESC
   ) AS risk_rank
 
   FROM grade_summary
