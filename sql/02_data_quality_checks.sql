@@ -50,7 +50,6 @@ FROM stg.loans_clean
 GROUP BY grade
 ORDER BY grade;
 
--- Inspect a few rows manually
 SELECT
   *
 FROM stg.loans_clean

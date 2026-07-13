@@ -2,7 +2,20 @@
 name = "credit-risk"
 version = "0.1.0"
 requires-python = ">=3.11"
-dependencies = ["duckdb"]
+dependencies = [
+    "duckdb",
+    "pandas",
+    "numpy",
+    "scikit-learn",
+    "lightgbm",
+    "matplotlib",
+]
+
+[project.optional-dependencies]
+dev = [
+    "jupyterlab",
+    "ipykernel",
+]
 
 [build-system]
 requires = ["setuptools>=64"]
