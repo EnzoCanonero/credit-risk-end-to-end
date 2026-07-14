@@ -18,7 +18,7 @@ def discrimination_metrics(y_true, y_proba) -> dict:
 
 def reliability_data(y_true, y_proba, n_bins: int = 10):
 
-    return calibration_curve(y_true, y_proba, n_bins=n_bins)
+    return calibration_curve(y_true, y_proba, n_bins=n_bins, strategy='quantile')
 
 
 def cost_sensitive_threshold(y_true, y_proba, cost_fn: float = 5.0, cost_fp: float = 1.0):

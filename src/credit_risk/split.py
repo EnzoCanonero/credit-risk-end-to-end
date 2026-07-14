@@ -1,7 +1,7 @@
-import pandas as pd
-
 # Out-of-time split: train on the oldest vintages, tune on the middle, test on the most recent.
 # Follows split from sql/05_split_design.sql
+
+import pandas as pd
 
 Splits = tuple[pd.DataFrame,pd.DataFrame,pd.DataFrame]
 

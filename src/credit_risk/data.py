@@ -1,11 +1,12 @@
-from pathlib import Path
-
 # Data loading from the project DuckDB database.
+
+from pathlib import Path
 
 import duckdb
 import pandas as pd
 
-DB_PATH = Path("data/credit_risk.duckdb")
+REPO_ROOT = Path(__file__).resolve().parents[2]
+DB_PATH = REPO_ROOT / "data" / "credit_risk.duckdb"
 
 
 def load_loans(db_path: Path = DB_PATH, table: str = "stg.loans_clean") -> pd.DataFrame:

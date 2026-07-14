@@ -9,20 +9,26 @@ from sklearn.linear_model import LogisticRegression
 NUMERIC = ['loan_amnt', 'int_rate', 'annual_inc']
 CATEGORICAL = ['grade']
 
+def build_preprocessor(
+    numeric: list[str] = NUMERIC,
+    categorical: list[str] = CATEGORICAL,
+) -> ColumnTransformer:
 
-def build_preprocessor() -> ColumnTransformer:
-    
     ct = ColumnTransformer(
-        [('numic', StandardScaler(), NUMERIC),  
-        ('categorical', OneHotEncoder(handle_unknown="ignore"), CATEGORICAL)]
+        [('num', StandardScaler(), numeric),
+        ('cat', OneHotEncoder(handle_unknown="ignore"), categorical)]
     )
 
     return ct
 
-def build_logistic() -> Pipeline:
-    
+
+def build_logistic(
+    numeric: list[str] = NUMERIC,
+    categorical: list[str] = CATEGORICAL,
+) -> Pipeline:
+
     pipe = Pipeline(
-        [('prep', build_preprocessor()),
+        [('prep', build_preprocessor(numeric, categorical)),
         ('clf', LogisticRegression(max_iter=1000))]
     )
 
