@@ -1,9 +1,8 @@
-SHOW TABLES FROM stg;
+-- Data quality checks on the modelling table.
 
--- Check row count
-SELECT
-  COUNT(*) AS total_rows
-FROM stg.loans_clean;
+-- Null rate, range and cardinality for every column at once. Replaces the old
+-- hand-written missing-value block, which needed editing on every new feature.
+SUMMARIZE stg.loans_clean;
 
 -- Check that each loan has a unique id
 SELECT
@@ -28,19 +27,6 @@ SELECT
   AVG(target_bad) AS bad_rate
 FROM stg.loans_clean;
 
--- Check missing values in the core columns
-SELECT
-  SUM(CASE WHEN id IS NULL THEN 1 ELSE 0 END) AS missing_id,
-  SUM(CASE WHEN loan_amnt IS NULL THEN 1 ELSE 0 END) AS missing_loan_amnt,
-  SUM(CASE WHEN term IS NULL THEN 1 ELSE 0 END) AS missing_term,
-  SUM(CASE WHEN int_rate IS NULL THEN 1 ELSE 0 END) AS missing_int_rate,
-  SUM(CASE WHEN grade IS NULL THEN 1 ELSE 0 END) AS missing_grade,
-  SUM(CASE WHEN annual_inc IS NULL THEN 1 ELSE 0 END) AS missing_annual_inc,
-  SUM(CASE WHEN issue_month IS NULL THEN 1 ELSE 0 END) AS missing_issue_month,
-  SUM(CASE WHEN loan_status IS NULL THEN 1 ELSE 0 END) AS missing_loan_status,
-  SUM(CASE WHEN target_bad IS NULL THEN 1 ELSE 0 END) AS missing_target_bad
-FROM stg.loans_clean;
-
 -- Check risk by grade
 SELECT
   grade,
@@ -50,7 +36,19 @@ FROM stg.loans_clean
 GROUP BY grade
 ORDER BY grade;
 
+-- The maturity filter must leave no immature vintage behind, and every loan must
+-- be labelled. Both should return zero.
 SELECT
-  *
-FROM stg.loans_clean
-LIMIT 10;
+  COUNT(*) FILTER (WHERE months_observed < 36) AS immature_loans,
+  COUNT(*) FILTER (WHERE target_bad IS NULL) AS unlabelled_loans,
+  MAX(issue_month) AS last_vintage
+FROM stg.loans_clean;
+
+-- credit_history_months is derived, so it deserves its own check: a negative value
+-- would mean earliest_cr_line falls after issue_month, i.e. corrupt source dates.
+SELECT
+  COUNT(*) FILTER (WHERE credit_history_months < 0) AS negative_history,
+  MIN(credit_history_months) AS min_months,
+  MEDIAN(credit_history_months) AS median_months,
+  MAX(credit_history_months) AS max_months
+FROM stg.loans_clean;
