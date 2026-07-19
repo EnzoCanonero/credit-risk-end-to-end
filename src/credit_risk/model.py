@@ -24,6 +24,14 @@ UNDERWRITER_NUMERIC = [
     'delinq_2yrs',
     'pub_rec_bankruptcies',
     'credit_history_months',
+    'loan_to_income',
+    'active_acct_ratio',
+    'collections_12_mths_ex_med',
+    'tax_liens',
+    'delinq_amnt',
+    'acc_now_delinq',
+    'chargeoff_within_12_mths',
+    'mths_since_last_delinq',
 ]
 UNDERWRITER_CATEGORICAL = [
     'home_ownership',
