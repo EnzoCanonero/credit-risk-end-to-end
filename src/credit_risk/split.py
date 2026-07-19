@@ -7,15 +7,18 @@ Splits = tuple[pd.DataFrame,pd.DataFrame,pd.DataFrame]
 
 def out_of_time_split(
     df: pd.DataFrame, 
-    val_start: str = "2015-04-01", 
-    test_start: str = "2015-10-01"
+    val_frac: float=0.20, 
+    test_frac: float=0.25,
+    date_col: str='issue_month'
 ) -> Splits:
 
-    val_start  = pd.Timestamp(val_start)
-    test_start = pd.Timestamp(test_start)
+    train_frac = 1 - val_frac - test_frac
 
-    train = df[ df['issue_month'] < val_start ].copy()                                    
-    val   = df[ (df['issue_month'] >= val_start) & (df['issue_month'] < test_start) ].copy()  
-    test  = df[ df['issue_month'] >= test_start ].copy()                                 
+    val_start  = df[date_col].quantile(train_frac, interpolation='lower')
+    test_start = df[date_col].quantile(train_frac + val_frac, interpolation='lower')
+
+    train = df[ df[date_col] < val_start ].copy()                                    
+    val   = df[ (df[date_col] >= val_start) & (df[date_col] < test_start) ].copy()  
+    test  = df[ df[date_col] >= test_start ].copy()                                 
 
     return train, val, test
