@@ -3,8 +3,9 @@
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
-from sklearn.preprocessing import StandardScaler, OneHotEncoder
+from sklearn.preprocessing import StandardScaler, OneHotEncoder, OrdinalEncoder
 from sklearn.linear_model import LogisticRegression
+from lightgbm import LGBMClassifier 
 
 
 LC_VERDICT_NUMERIC = ['int_rate']
@@ -70,5 +71,42 @@ def build_logistic(
         [('prep', build_preprocessor(numeric, categorical)),
         ('clf', LogisticRegression(max_iter=1000))]
     )
+
+    return pipe
+
+
+def build_tree_preprocessor(
+    numeric: list[str] = NUMERIC,
+    categorical: list[str] = CATEGORICAL,
+) -> ColumnTransformer:
+    # Trees want the opposite of the logistic preprocessing: numeric passthrough (LightGBM
+    # sends NaN down a learned branch, and splits are rank-based, so no impute or scale) and
+    # ordinal-encoded categoricals (integer codes, not one-hot, so 50 states stay one column).
+    ct = ColumnTransformer([
+        ('num', 'passthrough', numeric),
+        ('cat',
+        OrdinalEncoder(handle_unknown='use_encoded_value', unknown_value=-1),
+        categorical)
+    ])
+
+    # Emit a named DataFrame instead of a bare array: silences the fit/predict feature-name
+    # mismatch, and keeps real names on LightGBM's feature_importances_ (not Column_0...).
+    return ct.set_output(transform="pandas")
+
+
+def build_lgbm(
+    numeric: list[str] = NUMERIC,
+    categorical: list[str] = CATEGORICAL,
+) -> Pipeline:
+    # No class_weight: imbalance is handled at the threshold, same choice as the logistic.
+    pipe = Pipeline([
+        ('prep', build_tree_preprocessor(numeric, categorical)),
+        ('clf', LGBMClassifier(
+            n_estimators=300,
+            learning_rate=0.05, 
+            num_leaves=31, 
+            verbose=-1
+        ))
+    ])
 
     return pipe
