@@ -1,33 +1,30 @@
 # Credit risk on Lending Club
 
-A default model on Lending Club's 36-month loans, built around one question: using only what was
-known about a borrower at origination, can we match — or beat — Lending Club's own risk pricing?
+This project models default risk for Lending Club's 36-month loans using information available
+at origination. It compares borrower features with Lending Club's risk assessment and evaluates
+whether combining both sets improves performance.
 
-`int_rate` is that pricing. The rate they set is the output of their internal risk model, so a
-model that reads it is copying their grade, not measuring risk. The interesting comparison is not
-"how high can the AUC go" but "can borrower data stand on its own against the price, and where
-does it add something the price missed?"
+`int_rate` and `grade` reflect Lending Club's assessment of each loan. The borrower-only model
+excludes them, while the benchmark and union models use them for comparison.
 
 ## What's here
 
-The target is lifetime default (charged off vs fully paid) on 36-month loans. One decision shapes
-everything: a loan is labelled only once it has been observed for its full 36 months. Without
-that maturity filter, recent vintages look artificially safe — their defaults simply haven't
-happened yet — and a random split hides it. This is the subtle half of the leakage story, and it
-is handled in SQL where the modelling table is built.
+The target is lifetime default (charged off versus fully paid) on 36-month loans. A loan is
+labelled only after it has been observed for its full term. Without this maturity filter, recent
+vintages would have incomplete outcomes and appear safer than older vintages. The filter is
+applied in SQL when the modelling table is built.
 
-Two rules keep the features honest:
+Feature availability is handled in two places:
 
-- **SQL enforces time.** Post-origination columns (payments, recoveries, last FICO) never enter
-  the modelling table. This is Lending Club's documented leakage trap.
-- **Python enforces framing.** `int_rate` and `grade` are honest origination-time data, but they
-  are Lending Club's verdict, so the underwriter model excludes them and keeps only what
-  describes the borrower.
+- **SQL:** Post-origination columns such as payments, recoveries, and last FICO are excluded from
+  the modelling table.
+- **Python:** Feature lists separate borrower variables from Lending Club's assessment. The
+  underwriter model excludes `int_rate` and `grade`.
 
 The split is out-of-time: train on the oldest vintages, tune on the middle, test on the most
-recent, so evaluation mimics scoring future loans instead of a random shuffle. Two models,
-logistic regression and LightGBM, are each run on three feature sets — Lending Club's verdict,
-the borrower data, and the union.
+recent. This setup evaluates performance on loans issued after those used for training. Logistic
+regression and LightGBM are fitted on three feature sets: Lending Club's verdict, borrower data,
+and the union of both.
 
 ## Results (validation)
 
@@ -43,15 +40,14 @@ lgbm
   union          0.696    0.275   0.120
 ```
 
-- Borrower data alone (underwriter) nearly matches the price, and the union beats it — so the
-  features carry risk the price left out.
-- It cannot rebuild the price from scratch: an LGBMRegressor recovers only ~40% of `int_rate`'s
-  variance, so most of what set the rate is information the public data never had.
-- The tree pays off only where features interact. It wins on the borrower and union sets and
-  loses on the single, monotone price column, where the smooth logistic fit is better.
-- The winning model is well calibrated out of the box, with a mild under-prediction in the
-  high-risk tail — a residue of out-of-time drift, as lending standards loosened and bad rates
-  rose from 2013 to 2016.
+- The borrower-only model performs close to the Lending Club verdict model. The union model
+  performs better than either feature set alone.
+- An `LGBMRegressor` explains approximately 40% of the variance in `int_rate`, so the available
+  borrower variables do not fully reproduce Lending Club's pricing.
+- LightGBM performs better on the borrower and union sets. Logistic regression performs better
+  on the Lending Club verdict set, which consists of smooth, monotonic risk information.
+- Validation results show good overall calibration, with mild underprediction in the high-risk
+  tail. This may reflect changes in the loan population over time.
 
 ## Layout
 
@@ -59,7 +55,7 @@ lgbm
 sql/        ingestion, the modelling table, and the EDA behind every feature choice
 src/        data loading, out-of-time split, model pipelines, evaluation
 scripts/    train_baseline.py: the reproducible run, two models by three feature sets
-notebooks/  the underwriter-vs-Lending-Club story, end to end
+notebooks/  underwriter and Lending Club feature-set analysis
 reports/    saved figures
 ```
 
@@ -73,14 +69,35 @@ python scripts/train_baseline.py
 
 ## Roadmap
 
-- **Validation rigor.** Quantify the out-of-time drift instead of just noting it: compare the
-  temporal split against a random one to see how much a shuffle inflates AUC, and measure
-  per-feature shift with PSI and adversarial validation. → a `drift` module in `src`, a random
-  split alongside the temporal one, and a notebook.
+Everything that selects the model runs before the test set is opened. The test is scored once,
+after these steps are frozen.
+
+- **Validation rigor.** Compare the temporal split with a random split and measure feature shift
+  using PSI and adversarial validation. Add a `drift` module, a random split implementation, and
+  a supporting notebook.
+- **Hyperparameter tuning.** Tune the LightGBM union model with Optuna after the validation work
+  is complete.
+- **Final test.** Evaluate the selected model once on the untouched test set.
+
+## Production layer
+
+- **Serving.** A batch scoring script and a minimal FastAPI endpoint with a single route, not a
+  full service.
+- **Quality gates.** Tests with pytest covering data validation, model invariances, and the API
+  contract; a Dockerfile; and GitHub Actions for lint and tests.
+- **Model card.** Assumptions, target population, known bias, limits, and guidance on when not to
+  use the model.
+
+## Later, if time
+
+These studies do not change the 36-month model that was tested, so they can follow it.
+
 - **Selection bias.** The model only ever sees accepted loans. The rejected file is ingested but
   unused; bring it into a comparable table and characterise how accepted and rejected applicants
-  differ on the shared fields (amount, DTI, risk score, employment). → SQL staging and a notebook.
-- **Hyperparameter tuning.** A principled Optuna pass on the LightGBM union model. Kept last and
-  kept light: the reconstruction ceiling means there is little AUC left to win, so this is polish.
-- **Final test.** The test set has stayed untouched throughout. Score the tuned model on it once,
-  for the honest headline number, and stop.
+  differ on shared fields such as amount, DTI, risk score, and employment. Add SQL staging and a
+  supporting notebook.
+- **60-month loans.** The current model covers 36-month loans only, which keeps a single
+  observation horizon. Applying the same fixed-window target to 60-month loans would reintroduce
+  the maturity bias, since those loans take 60 months to mature and few recent vintages would
+  qualify. A survival or discrete-time hazard model handles this by using each loan for the
+  period it was observed and treating the term as a covariate, covering both terms in one model.
