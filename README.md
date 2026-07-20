@@ -63,7 +63,7 @@ reports/    saved figures
 
 ```
 pip install -e .                 # into a Python 3.11 environment
-# build data/credit_risk.duckdb from the raw CSVs by running the files in sql/ in order
+python scripts/build_db.py       # build data/credit_risk.duckdb from the raw CSVs
 python scripts/train_baseline.py
 ```
 
