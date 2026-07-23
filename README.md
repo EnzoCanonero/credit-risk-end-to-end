@@ -26,6 +26,8 @@ recent. This setup evaluates performance on loans issued after those used for tr
 regression and LightGBM are fitted on three feature sets: Lending Club's verdict, borrower data,
 and the union of both.
 
+A separate notebook checks that split (`notebooks/22_validation`). The borrower population is stable across the two periods, with only int_rate showing noticeable drift. Consequently, evaluating out of time rather than using a random split incurs only a marginal 0.003 reduction in ROC AUC. The split remains temporal because it reflects how the model is used in practice, not because this cost is substantial.
+
 ## Results (validation)
 
 ```
@@ -53,9 +55,9 @@ lgbm
 
 ```
 sql/        ingestion, the modelling table, and the EDA behind every feature choice
-src/        data loading, out-of-time split, model pipelines, evaluation
-scripts/    train_baseline.py: the reproducible run, two models by three feature sets
-notebooks/  underwriter and Lending Club feature-set analysis
+src/        data loading, out-of-time and random split, model pipelines, evaluation, drift
+scripts/    build_db.py builds the database, train_baseline.py runs the models
+notebooks/  21 underwriter vs Lending Club, 22 validation design and drift
 reports/    saved figures
 ```
 
@@ -72,9 +74,11 @@ python scripts/train_baseline.py
 Everything that selects the model runs before the test set is opened. The test is scored once,
 after these steps are frozen.
 
-- **Validation rigor.** Compare the temporal split with a random split and measure feature shift
-  using PSI and adversarial validation. Add a `drift` module, a random split implementation, and
-  a supporting notebook.
+- **Decision economics.** The threshold currently uses fixed costs, 5 to 1 for a false negative
+  against a false positive. Realised outcomes put that ratio nearer 2.4 to 1, and both sides
+  scale with loan size and interest rate, so the decision belongs at the loan level: approve when
+  expected profit is positive. Replace the constant cost function in `evaluate.py` and report
+  results in currency rather than AUC.
 - **Hyperparameter tuning.** Tune the LightGBM union model with Optuna after the validation work
   is complete.
 - **Final test.** Evaluate the selected model once on the untouched test set.
