@@ -1,4 +1,5 @@
-# Evaluation: discrimination, calibration, and cost-sensitive thresholding.
+# Evaluation: how well the model ranks and how honest its probabilities are, then what a
+# decision made on them is worth.
 
 import numpy as np
 from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_loss
@@ -66,21 +67,35 @@ def murphy_decomposition(y_true, y_proba, n_bins: int = 20) -> dict:
     }
 
 
-def cost_sensitive_threshold(y_true, y_proba, cost_fn: float = 5.0, cost_fp: float = 1.0):
-    
-    thresholds = np.linspace(0.01, 0.99, 99)
-    total_cost = np.zeros(len(thresholds))
+# Decision economics.
+# Constants are calibrated on the training vintages in sql/30_loan_economics.sql
 
-    for i, t in enumerate(thresholds):
-        pred_bad = y_proba >= t
-        FN_t = ((y_true==1) & ~pred_bad).sum()
-        FP_t = ((y_true==0) & pred_bad).sum()
-        total_cost[i] = cost_fn * FN_t + cost_fp * FP_t
-    
-    best_t = thresholds[np.argmin(total_cost)]
+MARGIN_PER_RATE_POINT = 0.0133   # share of principal earned per point of int_rate
+LOSS_FRACTION = 0.3543           # share of principal lost when a loan charges off
 
-    return {
-        'best_threshold': best_t,
-        'thresholds': thresholds,
-        'costs': total_cost,
-    }
+
+def loan_economics(loan_amnt, int_rate):
+    # What a loan is worth either way, in currency.
+    margin = loan_amnt * MARGIN_PER_RATE_POINT * int_rate
+    loss = loan_amnt * LOSS_FRACTION
+
+    return margin, loss
+
+
+def expected_profit(y_proba, loan_amnt, int_rate):
+    # Profit rather than a boolean, so the caller can both decide and add it up.
+    margin, loss = loan_economics(loan_amnt, int_rate)
+
+    earned = (1 - y_proba) * margin
+    lost = y_proba * loss
+
+    return earned - lost
+
+
+def breakeven_probability(int_rate):
+    # Setting expected_profit to zero gives p = margin / (margin + loss), and loan_amnt cancels
+    # because it multiplies both. So the threshold follows the rate alone: size decides how much
+    # a decision is worth, never which way it goes.
+    margin_fraction = MARGIN_PER_RATE_POINT * int_rate
+
+    return margin_fraction / (margin_fraction + LOSS_FRACTION)

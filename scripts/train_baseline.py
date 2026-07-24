@@ -31,7 +31,6 @@ from credit_risk.evaluate import (
     discrimination_metrics,
     reliability_data,
     murphy_decomposition,
-    cost_sensitive_threshold,
 )
 
 REPORTS = Path(__file__).resolve().parents[1] / "reports"
@@ -70,14 +69,14 @@ def evaluate_features(
 
     metrics = discrimination_metrics(y, proba)
     murphy = murphy_decomposition(y, proba)
-    threshold = cost_sensitive_threshold(y, proba)
 
+    # How the model ranks and how honest its probabilities are. What a decision on them is worth
+    # in currency is priced in notebooks/23_decision_economics.
     return {
         "roc_auc": metrics["roc_auc"],
         "pr_auc": metrics["pr_auc"],
         "brier": metrics["brier"],
         "resolution": murphy["resolution"],
-        "threshold": threshold["best_threshold"],
     }
     
 

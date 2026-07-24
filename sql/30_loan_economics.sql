@@ -1,33 +1,12 @@
 -- What does a loan earn when it is repaid, and what does it cost when it defaults?
-
--- TODO — estimate both from realised outcomes, per interest-rate band.
---
---   For loans that were repaid (target_bad = 0), the margin earned:
---       total_rec_int / loan_amnt
---
---   For loans that charged off (target_bad = 1), the share of principal lost once everything
---   recovered is counted:
---       1 - (total_rec_prncp + recoveries + total_rec_int) / loan_amnt
---
---   Join stg.loans_clean to raw.loans_accepted on id: those payment columns live in raw and
---   never enter the modelling table. Band the rate with ntile(4) OVER (ORDER BY int_rate) and
---   report the two figures side by side, with the loan counts.
---
---   The two behave differently, and that is the whole point. Loss stays near 0.37 of loan_amnt
---   whatever the rate, while margin climbs with it. That is what makes the break-even
---   probability a property of each loan rather than one threshold for the portfolio.
---
---   These are post-origination columns. Calibrating business parameters with them is fine;
---   using them as model features would be leakage.
+-- The first query bands the rate to show the shape. The second returns the two constants that
+-- evaluate.py carries as defaults.
 
 WITH bands AS (
   SELECT
     id,
     target_bad,
     int_rate,
-    -- id breaks ties: int_rate has 523 distinct values over 708k loans, so a band boundary
-    -- falls inside a group sharing the same rate, and without a tiebreaker which loans land on
-    -- each side depends on the query plan rather than on the data.
     ntile(4) OVER(ORDER BY int_rate, id) AS rate_band
   FROM stg.loans_clean
 )
@@ -57,5 +36,38 @@ FROM bands AS b
 JOIN raw.loans_accepted AS a ON a.id = b.id
 GROUP BY b.rate_band
 ORDER BY b.rate_band;
+
+
+WITH train_outcomes AS (
+  SELECT
+    c.target_bad,
+    c.int_rate,
+    a.loan_amnt,
+    a.total_rec_int,
+    a.total_rec_prncp,
+    a.recoveries
+  FROM stg.loans_clean AS c
+  JOIN raw.loans_accepted AS a ON a.id = c.id
+  WHERE c.issue_month < DATE '2015-03-01'
+)
+
+SELECT
+  ROUND(
+    regr_slope(total_rec_int / loan_amnt, int_rate) FILTER (WHERE target_bad = 0),
+    4
+  ) AS margin_per_rate_point,
+
+  ROUND(
+    regr_intercept(total_rec_int / loan_amnt, int_rate) FILTER (WHERE target_bad = 0),
+    4
+  ) AS margin_intercept,
+
+  ROUND(
+    1 - SUM(total_rec_prncp + recoveries + total_rec_int) FILTER (WHERE target_bad = 1)
+      / SUM(loan_amnt) FILTER (WHERE target_bad = 1),
+    4
+  ) AS loss_fraction
+
+FROM train_outcomes;
 
 
