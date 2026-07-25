@@ -69,13 +69,24 @@ that default near 40% and lose money. On a book already screened down to Lending
 loans, the approve-or-reject decision adds little; the model earns its keep in ranking and
 pricing, not in the cut.
 
+## Tuning
+
+An Optuna search (`scripts/tune_lgbm.py`, `notebooks/24_tuning`) tunes the union LightGBM on the
+training vintages and scores it on validation. It minimises log-loss rather than a pure ranking
+metric, so calibration is tuned alongside discrimination, which the decision layer above rests on.
+
+The gain is small and consistent: ROC AUC 0.696 to 0.699, log-loss 0.393 to 0.392. The search
+settles on a slow, heavily regularised model, a 0.01 learning rate over 1734 trees, which is what
+a marginal gain looks like on a strong baseline over 375k rows. It is too small to move the
+currency figures above, so confirming it is left to the final test on untouched data.
+
 ## Layout
 
 ```
 sql/        ingestion, the modelling table, and the EDA behind every feature choice
 src/        data loading, out-of-time and random split, model pipelines, evaluation, drift
 scripts/    build_db.py builds the database, train_baseline.py runs the models
-notebooks/  21 underwriter vs Lending Club, 22 validation design and drift, 23 decision economics
+notebooks/  21 underwriter vs Lending Club, 22 validation design and drift, 23 decision economics, 24 tuning
 reports/    saved figures
 ```
 
@@ -92,8 +103,6 @@ python scripts/train_baseline.py
 Everything that selects the model runs before the test set is opened. The test is scored once,
 after these steps are frozen.
 
-- **Hyperparameter tuning.** Tune the LightGBM union model with Optuna after the validation work
-  is complete.
 - **Final test.** Evaluate the selected model once on the untouched test set.
 
 ## Production layer

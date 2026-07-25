@@ -43,8 +43,12 @@ UNDERWRITER_CATEGORICAL = [
     'emp_length',
 ]
 
-NUMERIC = UNDERWRITER_NUMERIC
-CATEGORICAL = UNDERWRITER_CATEGORICAL
+# The builders default to the union set, the model the project carries forward past notebook 21.
+# The comparison code in train_baseline and notebook 21 still passes each set explicitly, so this
+# only decides what a bare build_*() means. A caller that feeds underwriter-only data now gets a
+# loud error on the missing int_rate/grade columns, instead of the union columns being dropped.
+NUMERIC = UNDERWRITER_NUMERIC + LC_VERDICT_NUMERIC
+CATEGORICAL = UNDERWRITER_CATEGORICAL + LC_VERDICT_CATEGORICAL
 
 def build_preprocessor(
     numeric: list[str] = NUMERIC,
@@ -97,16 +101,24 @@ def build_tree_preprocessor(
 def build_lgbm(
     numeric: list[str] = NUMERIC,
     categorical: list[str] = CATEGORICAL,
+    params: dict | None = None,
 ) -> Pipeline:
     # No class_weight: imbalance is handled at the threshold, same choice as the logistic.
+    # The hand-set defaults are the baseline. A params dict overrides them, so the same builder
+    # serves both the baseline and the tuned model from scripts/tune_lgbm.py. verbose stays in the
+    # defaults, so a passed dict does not have to carry it.
+    settings = {
+        'n_estimators': 300,
+        'learning_rate': 0.05,
+        'num_leaves': 31,
+        'verbose': -1,
+    }
+    if params:
+        settings.update(params)
+
     pipe = Pipeline([
         ('prep', build_tree_preprocessor(numeric, categorical)),
-        ('clf', LGBMClassifier(
-            n_estimators=300,
-            learning_rate=0.05, 
-            num_leaves=31, 
-            verbose=-1
-        ))
+        ('clf', LGBMClassifier(**settings))
     ])
 
     return pipe
