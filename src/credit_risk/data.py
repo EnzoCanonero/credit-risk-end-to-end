@@ -14,3 +14,12 @@ def load_loans(db_path: Path = DB_PATH, table: str = "stg.loans_clean") -> pd.Da
 
     with duckdb.connect(str(db_path), read_only=True) as con:
         return con.execute(f"SELECT * FROM {table}").df()
+
+
+def load_outcomes(db_path: Path = DB_PATH, table: str = "raw.loans_accepted") -> pd.DataFrame:
+    #From raw.loans_accepted: id, loan_amnt, total_rec_int, total_rec_prncp, recoveries
+
+    with duckdb.connect(str(db_path), read_only=True) as con:
+        return con.execute(
+            f"SELECT id, loan_amnt, total_rec_int, total_rec_prncp, recoveries FROM {table}"
+        ).df()

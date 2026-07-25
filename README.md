@@ -7,6 +7,9 @@ whether combining both sets improves performance.
 `int_rate` and `grade` reflect Lending Club's assessment of each loan. The borrower-only model
 excludes them, while the benchmark and union models use them for comparison.
 
+It then turns those scores into an approve-or-reject decision, priced against realised outcomes
+in currency rather than judged on AUC alone.
+
 ## What's here
 
 The target is lifetime default (charged off versus fully paid) on 36-month loans. A loan is
@@ -51,13 +54,28 @@ lgbm
 - Validation results show good overall calibration, with mild underprediction in the high-risk
   tail. This may reflect changes in the loan population over time.
 
+## Decision economics
+
+Turning a probability into a lending decision needs to know what each outcome is worth. A default
+costs about 0.35 of the principal after recoveries, and a repaid loan earns its interest, which
+climbs with the rate. Both are calibrated on the training vintages in `sql/30_loan_economics.sql`
+and priced per loan in `notebooks/23_decision_economics`.
+
+Scored on realised outcomes, three policies land within 1% of each other, between 132 and 133M on
+the validation book: approving everything, a single break-even threshold for the whole book, and
+approving on each loan's own expected profit. The single threshold slightly beats per-loan
+pricing, because the per-loan break-even rises to 0.48 at the highest rates and approves loans
+that default near 40% and lose money. On a book already screened down to Lending Club's approved
+loans, the approve-or-reject decision adds little; the model earns its keep in ranking and
+pricing, not in the cut.
+
 ## Layout
 
 ```
 sql/        ingestion, the modelling table, and the EDA behind every feature choice
 src/        data loading, out-of-time and random split, model pipelines, evaluation, drift
 scripts/    build_db.py builds the database, train_baseline.py runs the models
-notebooks/  21 underwriter vs Lending Club, 22 validation design and drift
+notebooks/  21 underwriter vs Lending Club, 22 validation design and drift, 23 decision economics
 reports/    saved figures
 ```
 
@@ -74,11 +92,6 @@ python scripts/train_baseline.py
 Everything that selects the model runs before the test set is opened. The test is scored once,
 after these steps are frozen.
 
-- **Decision economics.** The threshold currently uses fixed costs, 5 to 1 for a false negative
-  against a false positive. Realised outcomes put that ratio nearer 2.4 to 1, and both sides
-  scale with loan size and interest rate, so the decision belongs at the loan level: approve when
-  expected profit is positive. Replace the constant cost function in `evaluate.py` and report
-  results in currency rather than AUC.
 - **Hyperparameter tuning.** Tune the LightGBM union model with Optuna after the validation work
   is complete.
 - **Final test.** Evaluate the selected model once on the untouched test set.
