@@ -1,92 +1,163 @@
 # Credit risk on Lending Club
 
-This project models default risk for Lending Club's 36-month loans using information available
-at origination. It compares borrower features with Lending Club's risk assessment and evaluates
-whether combining both sets improves performance.
+Default-risk models for Lending Club's 36-month loans, built from what a lender knows at
+origination. The project runs three questions in sequence: whose information actually prices a
+loan, whether the model's probabilities are honest enough to act on, and what a lending decision
+made on them is worth in money.
 
-`int_rate` and `grade` reflect Lending Club's assessment of each loan. The borrower-only model
-excludes them, while the benchmark and union models use them for comparison.
-
-It then turns those scores into an approve-or-reject decision, priced against realised outcomes
-in currency rather than judged on AUC alone.
+`int_rate` and `grade` are Lending Club's own verdict on each loan. A borrower-only model leaves
+them out, to weigh the applicant data on its own; the union model adds them back. Everything trains
+on the oldest vintages and is judged on newer ones.
 
 ## What's here
 
-The target is lifetime default (charged off versus fully paid) on 36-month loans. A loan is
-labelled only after it has been observed for its full term. Without this maturity filter, recent
-vintages would have incomplete outcomes and appear safer than older vintages. The filter is
-applied in SQL when the modelling table is built.
+The target is lifetime default on 36-month loans, and a loan is labelled only once it has run its
+full term. Without that maturity filter recent vintages would look artificially safe, their
+defaults not yet arrived; the filter is applied in SQL when the modelling table is built.
 
-Feature availability is handled in two places:
+Leakage is held off in two layers. SQL keeps post-origination columns, payments, recoveries, last
+FICO, out of the modelling table. Python then splits the remaining fields into borrower data and
+Lending Club's verdict, giving three feature sets to compare: the verdict on its own, the borrower
+data on its own (the underwriter model, which excludes `int_rate` and `grade` by construction), and
+the union of the two. The split is out-of-time throughout: train on the oldest vintages, tune on
+the middle, test on the most recent, holding 375k, 155k and 178k loans.
 
-- **SQL:** Post-origination columns such as payments, recoveries, and last FICO are excluded from
-  the modelling table.
-- **Python:** Feature lists separate borrower variables from Lending Club's assessment. The
-  underwriter model excludes `int_rate` and `grade`.
+## Results
 
-The split is out-of-time: train on the oldest vintages, tune on the middle, test on the most
-recent. This setup evaluates performance on loans issued after those used for training. Logistic
-regression and LightGBM are fitted on three feature sets: Lending Club's verdict, borrower data,
-and the union of both.
+The model is a union LightGBM, borrower data and Lending Club's verdict together. That set beat
+either one on its own when the three were compared on validation ([Whose information prices the
+loan](#whose-information-prices-the-loan), below), so it is the one carried forward: tuned with
+Optuna, refit on train and validation, and scored on the held-out test once, its only look at
+those newest vintages. It orders risk out of sample at least as well as validation suggested:
 
-A separate notebook checks that split (`notebooks/22_validation`). The borrower population is stable across the two periods, with only int_rate showing noticeable drift. Consequently, evaluating out of time rather than using a random split incurs only a marginal 0.003 reduction in ROC AUC. The split remains temporal because it reflects how the model is used in practice, not because this cost is substantial.
+| union lgbm         | ROC AUC | PR AUC | Brier | log-loss |
+|--------------------|:-------:|:------:|:-----:|:--------:|
+| validation (tuned) | 0.699   | 0.279  | 0.120 | 0.392    |
+| test               | 0.710   | 0.303  | 0.121 | 0.395    |
 
-## Results (validation)
+Priced on realised outcomes, three decision rules, approve everything, one break-even threshold for
+the whole book, or approve on each loan's own expected profit, come out close, and the simplest is
+the best (the rules and the economics behind them are under [What a decision is
+worth](#what-a-decision-is-worth), below):
 
-```
-               roc_auc   pr_auc   brier
-logistic
-  lc_verdict     0.679    0.252   0.122
-  underwriter    0.663    0.244   0.122
-  union          0.691    0.266   0.121
-lgbm
-  lc_verdict     0.675    0.247   0.122
-  underwriter    0.674    0.253   0.122
-  union          0.696    0.275   0.120
-```
+| policy            | total profit | approved | bad rate |
+|-------------------|:------------:|:--------:|:--------:|
+| approve all       | 124.9M       | 178,453  | 0.155    |
+| single break-even | 129.9M       | 171,292  | 0.144    |
+| expected profit   | 126.5M       | 177,203  | 0.155    |
 
-- The borrower-only model performs close to the Lending Club verdict model. The union model
-  performs better than either feature set alone.
-- An `LGBMRegressor` explains approximately 40% of the variance in `int_rate`, so the available
-  borrower variables do not fully reproduce Lending Club's pricing.
-- LightGBM performs better on the borrower and union sets. Logistic regression performs better
-  on the Lending Club verdict set, which consists of smooth, monotonic risk information.
-- Validation results show good overall calibration, with mild underprediction in the high-risk
-  tail. This may reflect changes in the loan population over time.
+On a book already screened to Lending Club's accepted loans the approve-or-reject decision is worth
+only a few percent, and a single threshold set on the training book captures it. Per-loan pricing
+does worse because it trusts probabilities that lean low on the newest vintage and approves
+high-rate loans that default at 41%.
 
-## Decision economics
+### Calibration
 
-Turning a probability into a lending decision needs to know what each outcome is worth. A default
-costs about 0.35 of the principal after recoveries, and a repaid loan earns its interest, which
-climbs with the rate. Both are calibrated on the training vintages in `sql/30_loan_economics.sql`
-and priced per loan in `notebooks/23_decision_economics`.
+The economics multiply by the predicted probability, so honest probabilities are a prerequisite,
+not a nicety. On validation the union model is already well calibrated, and no post-hoc correction
+is applied.
 
-Scored on realised outcomes, three policies land within 1% of each other, between 132 and 133M on
-the validation book: approving everything, a single break-even threshold for the whole book, and
-approving on each loan's own expected profit. The single threshold slightly beats per-loan
-pricing, because the per-loan break-even rises to 0.48 at the highest rates and approves loans
-that default near 40% and lose money. On a book already screened down to Lending Club's approved
-loans, the approve-or-reject decision adds little; the model earns its keep in ranking and
-pricing, not in the cut.
+![Validation reliability, union LightGBM](reports/reliability_lgbm.png)
 
-## Tuning
+On the test set it underpredicts across the range: the newest vintage defaults more than the
+training years, and a model fit on older data does not fully see it. The drift is small, but it is
+exactly what tips per-loan pricing behind the blunter single threshold above.
 
-An Optuna search (`scripts/tune_lgbm.py`, `notebooks/24_tuning`) tunes the union LightGBM on the
-training vintages and scores it on validation. It minimises log-loss rather than a pure ranking
-metric, so calibration is tuned alongside discrimination, which the decision layer above rests on.
+![Test reliability, tuned union LightGBM](reports/reliability_test.png)
 
-The gain is small and consistent: ROC AUC 0.696 to 0.699, log-loss 0.393 to 0.392. The search
-settles on a slow, heavily regularised model, a 0.01 learning rate over 1734 trees, which is what
-a marginal gain looks like on a strong baseline over 375k rows. It is too small to move the
-currency figures above, so confirming it is left to the final test on untouched data.
+## Data layer
+
+The work sits in two layers. This one, in `sql/`, prepares and interrogates the data; the notebooks
+below do the modelling. The files are numbered in groups:
+
+- **`ingest`, `01`** load the raw CSVs into DuckDB and build the modelling table: the lifetime-default
+  target, the maturity filter, and the leakage exclusions that keep post-origination columns out.
+- **`02`–`05`** stand behind that table: data-quality guards, the evidence that recent vintages are
+  not yet observable (status mix and default maturation), and the out-of-time split cutoffs.
+- **`10`–`12`** are portfolio context: what a Lending Club grade encodes, how originations and bad
+  rates moved over time, and how defaults accumulate as each vintage ages.
+- **`20`** is the feature EDA behind the underwriter feature list, distributions, outliers, and each
+  field's link to default.
+- **`30`** is the loan economics: interest earned on repaid loans, principal lost on defaults, and
+  the two constants the decision layer prices with.
+
+## Studies
+
+The result above sits on five notebooks, each one question, in the order they build. Every one
+trains on the training vintages and is measured on validation; the test set stays sealed until the
+last.
+
+- [`21_underwriter_vs_lc`](notebooks/21_underwriter_vs_lc.ipynb) — whose information prices the loan.
+- [`22_validation`](notebooks/22_validation.ipynb) — whether scoring out-of-time costs anything.
+- [`23_decision_economics`](notebooks/23_decision_economics.ipynb) — what a decision on the probabilities is worth.
+- [`24_tuning`](notebooks/24_tuning.ipynb) — whether tuning the model moves it.
+- [`25_final_test`](notebooks/25_final_test.ipynb) — the single scored look reported above.
+
+### Whose information prices the loan?
+
+Logistic regression and LightGBM, each on three feature sets: Lending Club's verdict, the borrower
+data, and the union of both.
+
+| model    | features    | ROC AUC | PR AUC | Brier |
+|----------|-------------|:-------:|:------:|:-----:|
+| logistic | lc_verdict  | 0.679   | 0.252  | 0.122 |
+| logistic | underwriter | 0.663   | 0.244  | 0.122 |
+| logistic | union       | 0.691   | 0.266  | 0.121 |
+| lgbm     | lc_verdict  | 0.675   | 0.247  | 0.122 |
+| lgbm     | underwriter | 0.674   | 0.253  | 0.122 |
+| lgbm     | union       | 0.696   | 0.275  | 0.120 |
+
+Borrower data alone lands just under Lending Club's verdict, and the union of both beats either.
+LightGBM wins on the borrower and union sets; logistic regression wins on the verdict set, which is
+little more than one smooth monotonic feature. An `LGBMRegressor` recovers only about 40% of the
+variance in `int_rate`, so the borrower fields do not reconstruct the price on their own.
+
+### Does the temporal split cost anything?
+
+The borrower population is stable across periods, every feature's PSI below 0.04, the two periods
+only 0.63 separable to an adversarial classifier. Adding `int_rate` lifts that separability to
+0.96, yet scoring out-of-time rather than on a random split costs only 0.003 of ROC AUC.
+`int_rate` drifts but does not derail, and the split stays temporal because it mirrors real use,
+not because the cost is large.
+
+### What a decision is worth
+
+A default costs about 0.35 of principal after recoveries; a repaid loan earns its interest, which
+climbs with the rate. Both are calibrated on the training vintages in `sql/30_loan_economics.sql`.
+Because the two do not scale together, each loan's break-even probability is its own, not one
+number for the book.
+
+| policy            | total profit | approved | bad rate |
+|-------------------|:------------:|:--------:|:--------:|
+| approve all       | 132.2M       | 154,703  | 0.150    |
+| single break-even | 133.2M       | 151,114  | 0.144    |
+| expected profit   | 132.4M       | 154,319  | 0.149    |
+
+On validation the three policies already land within 1% of each other, and the single threshold
+edges ahead of per-loan pricing. The finding starts here, and the final test confirms and widens
+it: on a screened book the decision adds little, and the blunt rule is the robust one.
+
+### Tuning
+
+An Optuna search over the union LightGBM, fit on train and scored on validation, minimising
+log-loss so calibration is tuned alongside ranking.
+
+| union lgbm | ROC AUC | PR AUC | Brier | log-loss |
+|------------|:-------:|:------:|:-----:|:--------:|
+| baseline   | 0.696   | 0.275  | 0.120 | 0.393    |
+| tuned      | 0.699   | 0.279  | 0.120 | 0.392    |
+
+The gain is small and consistent, and the search settles on a slow, heavily regularised model, a
+0.01 learning rate over 1734 trees, the shape of a marginal gain on a strong baseline. Too small to
+move the currency figures, so the real check is the final test.
 
 ## Layout
 
 ```
 sql/        ingestion, the modelling table, and the EDA behind every feature choice
 src/        data loading, out-of-time and random split, model pipelines, evaluation, drift
-scripts/    build_db.py builds the database, train_baseline.py runs the models
-notebooks/  21 underwriter vs Lending Club, 22 validation design and drift, 23 decision economics, 24 tuning
+scripts/    build_db.py builds the database, train_baseline.py the model comparison, tune_lgbm.py the search
+notebooks/  21 underwriter vs Lending Club, 22 validation, 23 decision economics, 24 tuning, 25 final test
 reports/    saved figures
 ```
 
@@ -97,13 +168,6 @@ pip install -e .                 # into a Python 3.11 environment
 python scripts/build_db.py       # build data/credit_risk.duckdb from the raw CSVs
 python scripts/train_baseline.py
 ```
-
-## Roadmap
-
-Everything that selects the model runs before the test set is opened. The test is scored once,
-after these steps are frozen.
-
-- **Final test.** Evaluate the selected model once on the untouched test set.
 
 ## Production layer
 
