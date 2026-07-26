@@ -155,8 +155,10 @@ move the currency figures, so the real check is the final test.
 
 ```
 sql/        ingestion, the modelling table, and the EDA behind every feature choice
-src/        data loading, out-of-time and random split, model pipelines, evaluation, drift
-scripts/    build_db.py builds the database, train_baseline.py the model comparison, tune_lgbm.py the search
+src/        data loading, split, model pipelines, evaluation, drift, and serving
+scripts/    build_db, train_baseline, tune_lgbm, build_model (the artifact), score_batch
+app/        the FastAPI scoring service
+models/     the serialised model artifact and its metadata
 notebooks/  21 underwriter vs Lending Club, 22 validation, 23 decision economics, 24 tuning, 25 final test
 reports/    saved figures
 ```
@@ -166,15 +168,24 @@ reports/    saved figures
 ```
 pip install -e .                 # into a Python 3.11 environment
 python scripts/build_db.py       # build data/credit_risk.duckdb from the raw CSVs
-python scripts/train_baseline.py
+python scripts/train_baseline.py # the model comparison
+python scripts/build_model.py    # fit the final model into models/
+uvicorn app.main:app             # serve it, then open http://localhost:8000/docs
 ```
 
 ## Production layer
 
-- **Serving.** A batch scoring script and a minimal FastAPI endpoint with a single route, not a
-  full service.
-- **Quality gates.** Tests with pytest covering data validation, model invariances, and the API
-  contract; a Dockerfile; and GitHub Actions for lint and tests.
+The model is served, not just evaluated. `scripts/build_model.py` refits the tuned configuration
+on all available data and serialises the whole Pipeline to `models/`, so scoring never retrains and
+the preprocessing travels inside the artifact. `src/credit_risk/serving.py` loads it once and
+exposes a single `score` function, which both `scripts/score_batch.py` (offline scoring of a CSV)
+and `app/main.py` (a FastAPI `/score` route with a validated request contract) call, so batch and
+online serving cannot drift apart.
+
+Still to build:
+
+- **Quality gates.** pytest over the pure functions and the API contract, a Dockerfile, and GitHub
+  Actions for lint and tests.
 - **Model card.** Assumptions, target population, known bias, limits, and guidance on when not to
   use the model.
 
@@ -182,12 +193,12 @@ python scripts/train_baseline.py
 
 These studies do not change the 36-month model that was tested, so they can follow it.
 
-- **Selection bias.** The model only ever sees accepted loans. The rejected file is ingested but
-  unused; bring it into a comparable table and characterise how accepted and rejected applicants
-  differ on shared fields such as amount, DTI, risk score, and employment. Add SQL staging and a
-  supporting notebook.
 - **60-month loans.** The current model covers 36-month loans only, which keeps a single
   observation horizon. Applying the same fixed-window target to 60-month loans would reintroduce
   the maturity bias, since those loans take 60 months to mature and few recent vintages would
   qualify. A survival or discrete-time hazard model handles this by using each loan for the
   period it was observed and treating the term as a covariate, covering both terms in one model.
+- **Selection bias.** The model only ever sees accepted loans. The rejected file is ingested but
+  unused; bring it into a comparable table and characterise how accepted and rejected applicants
+  differ on shared fields such as amount, DTI, risk score, and employment. Add SQL staging and a
+  supporting notebook.

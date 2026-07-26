@@ -10,6 +10,8 @@ dependencies = [
     "lightgbm",
     "matplotlib",
     "optuna",
+    "fastapi",
+    "uvicorn",
 ]
 
 [project.optional-dependencies]

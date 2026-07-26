@@ -1,0 +1,52 @@
+{
+  "params": {
+    "num_leaves": 44,
+    "learning_rate": 0.010124795821502304,
+    "min_child_samples": 491,
+    "subsample": 0.7386671476839168,
+    "colsample_bytree": 0.8404568538504682,
+    "reg_alpha": 0.01253604988914071,
+    "reg_lambda": 0.7918396281231879,
+    "subsample_freq": 1,
+    "n_estimators": 1734
+  },
+  "features": [
+    "loan_amnt",
+    "annual_inc",
+    "dti",
+    "fico_range_low",
+    "inq_last_6mths",
+    "open_acc",
+    "pub_rec",
+    "revol_bal",
+    "revol_util",
+    "total_acc",
+    "delinq_2yrs",
+    "pub_rec_bankruptcies",
+    "credit_history_months",
+    "loan_to_income",
+    "active_acct_ratio",
+    "collections_12_mths_ex_med",
+    "tax_liens",
+    "delinq_amnt",
+    "acc_now_delinq",
+    "chargeoff_within_12_mths",
+    "mths_since_last_delinq",
+    "int_rate",
+    "home_ownership",
+    "purpose",
+    "addr_state",
+    "verification_status",
+    "application_type",
+    "emp_length",
+    "grade"
+  ],
+  "n_fit_rows": 708368,
+  "fit_vintages": [
+    "2007-06",
+    "2016-03"
+  ],
+  "built": "2026-07-25",
+  "fit_on": "train+val+test, all available data",
+  "performance": "unbiased estimate in notebooks/25_final_test (same config fit on train+val)"
+}
