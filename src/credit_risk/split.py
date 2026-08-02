@@ -3,7 +3,7 @@
 import pandas as pd
 import math
 
-Splits = tuple[pd.DataFrame,pd.DataFrame,pd.DataFrame]
+Splits = tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]
 
 # Splits rows in time order.
 def out_of_time_split(

@@ -10,7 +10,11 @@ from credit_risk.model import build_tree_preprocessor
 
 
 # Calculates the population stability index.
-def population_stability_index(expected, actual, n_bins: int = 10) -> float:
+def population_stability_index(
+    expected: pd.Series,
+    actual: pd.Series,
+    n_bins: int = 10,
+) -> float:
     edges = np.quantile(expected, np.linspace(0, 1, n_bins + 1))
     edges = np.unique(edges)
 
@@ -29,7 +33,13 @@ def population_stability_index(expected, actual, n_bins: int = 10) -> float:
 
 
 # Tests whether the model can distinguish train and validation rows.
-def adversarial_validation(train, val, numeric, categorical, cv: int = 3) -> dict:
+def adversarial_validation(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    numeric: list[str],
+    categorical: list[str],
+    cv: int = 3,
+) -> dict[str, float | pd.Series]:
     cols = numeric + categorical
 
     X = pd.concat([train[cols], val[cols]], ignore_index=True)

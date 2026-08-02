@@ -2,10 +2,12 @@
 
 import json
 from pathlib import Path
+from typing import Any, cast
 
 import optuna
 from optuna.samplers import TPESampler
 from lightgbm import LGBMClassifier, early_stopping
+import pandas as pd
 from sklearn.metrics import log_loss
 
 from credit_risk.data import load_loans
@@ -31,8 +33,14 @@ EARLY_STOPPING = 50
 
 
 # Fits one trial and returns its validation log loss.
-def objective(trial, X_train, y_train, X_val, y_val):
-    params = {
+def objective(
+    trial: optuna.Trial,
+    X_train: pd.DataFrame,
+    y_train: pd.Series,
+    X_val: pd.DataFrame,
+    y_val: pd.Series,
+) -> float:
+    params: dict[str, Any] = {
         "num_leaves": trial.suggest_int("num_leaves", 15, 255),
         "learning_rate": trial.suggest_float("learning_rate", 0.01, 0.3, log=True),
         "min_child_samples": trial.suggest_int("min_child_samples", 20, 500, log=True),
@@ -57,8 +65,8 @@ def objective(trial, X_train, y_train, X_val, y_val):
 
 
 # Adds fixed settings to the best parameters from the study.
-def best_params(study):
-    params = dict(study.best_params)
+def best_params(study: optuna.Study) -> dict[str, int | float]:
+    params = cast(dict[str, int | float], dict(study.best_params))
     params["subsample_freq"] = 1
     params["n_estimators"] = study.best_trial.user_attrs["n_estimators"]
 
@@ -66,7 +74,11 @@ def best_params(study):
 
 
 # Compares the baseline and tuned models on validation data.
-def compare(train, val, params):
+def compare(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    params: dict[str, int | float],
+) -> dict[str, dict[str, float]]:
     rows = {}
     for name, model in [
         ("baseline", build_lgbm(NUMERIC, CATEGORICAL)),
@@ -83,7 +95,7 @@ def compare(train, val, params):
 
 
 # Runs the search, saves the best parameters, and prints the comparison.
-def main():
+def main() -> None:
     df = load_loans()
     train, val, _ = out_of_time_split(df)
 

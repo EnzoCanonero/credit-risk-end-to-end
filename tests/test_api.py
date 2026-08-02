@@ -13,7 +13,7 @@ pytestmark = pytest.mark.skipif(
 
 
 # Checks that the health endpoint reports a healthy service.
-def test_health():
+def test_health() -> None:
     with TestClient(app) as client:
         r = client.get("/health")
 
@@ -22,7 +22,7 @@ def test_health():
 
 
 # Checks that a valid loan receives a probability and decision.
-def test_score_ok(valid_payload):
+def test_score_ok(valid_payload: dict[str, object]) -> None:
     with TestClient(app) as client:
         r = client.post("/score", json=valid_payload)
     assert r.status_code == 200
@@ -33,7 +33,7 @@ def test_score_ok(valid_payload):
 
 
 # Checks that the scoring endpoint rejects an incomplete loan.
-def test_score_rejects_incomplete(valid_payload):
+def test_score_rejects_incomplete(valid_payload: dict[str, object]) -> None:
     bad = {k: v for k, v in valid_payload.items() if k != "int_rate"}
     with TestClient(app) as client:
         r = client.post("/score", json=bad)

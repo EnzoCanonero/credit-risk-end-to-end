@@ -1,12 +1,21 @@
 # Evaluates model quality and lending decisions.
 
+from typing import TypeAlias
+
 import numpy as np
-from sklearn.metrics import roc_auc_score, average_precision_score, brier_score_loss
+import pandas as pd
+from numpy.typing import ArrayLike, NDArray
 from sklearn.calibration import calibration_curve
+from sklearn.metrics import average_precision_score, brier_score_loss, roc_auc_score
+
+NumericValue: TypeAlias = float | NDArray[np.float64] | pd.Series
 
 
 # Calculates discrimination and calibration metrics.
-def discrimination_metrics(y_true, y_proba) -> dict:
+def discrimination_metrics(
+    y_true: ArrayLike,
+    y_proba: ArrayLike,
+) -> dict[str, float]:
     
     dis = {
         "roc_auc": roc_auc_score(y_true, y_proba),
@@ -18,13 +27,21 @@ def discrimination_metrics(y_true, y_proba) -> dict:
 
 
 # Returns data for a reliability curve.
-def reliability_data(y_true, y_proba, n_bins: int = 10):
+def reliability_data(
+    y_true: ArrayLike,
+    y_proba: ArrayLike,
+    n_bins: int = 10,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
 
     return calibration_curve(y_true, y_proba, n_bins=n_bins, strategy='quantile')
 
 
 # Breaks the Brier score into its components.
-def murphy_decomposition(y_true, y_proba, n_bins: int = 20) -> dict:
+def murphy_decomposition(
+    y_true: ArrayLike,
+    y_proba: ArrayLike,
+    n_bins: int = 20,
+) -> dict[str, float]:
 
     y_true = np.asarray(y_true)
     y_proba = np.asarray(y_proba)
@@ -73,7 +90,10 @@ LOSS_FRACTION = 0.3543
 
 
 # Calculates the margin and loss for a loan.
-def loan_economics(loan_amnt, int_rate):
+def loan_economics(
+    loan_amnt: NumericValue,
+    int_rate: NumericValue,
+) -> tuple[NumericValue, NumericValue]:
     margin = loan_amnt * MARGIN_PER_RATE_POINT * int_rate
     loss = loan_amnt * LOSS_FRACTION
 
@@ -81,7 +101,11 @@ def loan_economics(loan_amnt, int_rate):
 
 
 # Calculates the expected profit for a loan.
-def expected_profit(y_proba, loan_amnt, int_rate):
+def expected_profit(
+    y_proba: NumericValue,
+    loan_amnt: NumericValue,
+    int_rate: NumericValue,
+) -> NumericValue:
     margin, loss = loan_economics(loan_amnt, int_rate)
 
     earned = (1 - y_proba) * margin
@@ -91,7 +115,7 @@ def expected_profit(y_proba, loan_amnt, int_rate):
 
 
 # Calculates the default probability at break-even.
-def breakeven_probability(int_rate):
+def breakeven_probability(int_rate: NumericValue) -> NumericValue:
     margin_fraction = MARGIN_PER_RATE_POINT * int_rate
 
     return margin_fraction / (margin_fraction + LOSS_FRACTION)

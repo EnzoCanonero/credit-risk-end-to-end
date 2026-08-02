@@ -1,7 +1,7 @@
 # Exposes the credit risk model through an API.
 
+from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager
-from typing import Optional
 
 from fastapi import FastAPI
 from pydantic import BaseModel
@@ -12,7 +12,7 @@ from credit_risk.evaluate import breakeven_probability
 
 # Loads the model when the API starts.
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     load_model()
     yield
 
@@ -21,27 +21,27 @@ app = FastAPI(title="Credit risk scoring", lifespan=lifespan)
 
 
 class Loan(BaseModel):
-    loan_amnt: Optional[float] = None
-    annual_inc: Optional[float] = None
-    dti: Optional[float] = None
-    fico_range_low: Optional[float] = None
-    inq_last_6mths: Optional[float] = None
-    open_acc: Optional[float] = None
-    pub_rec: Optional[float] = None
-    revol_bal: Optional[float] = None
-    revol_util: Optional[float] = None
-    total_acc: Optional[float] = None
-    delinq_2yrs: Optional[float] = None
-    pub_rec_bankruptcies: Optional[float] = None
-    credit_history_months: Optional[float] = None
-    loan_to_income: Optional[float] = None
-    active_acct_ratio: Optional[float] = None
-    collections_12_mths_ex_med: Optional[float] = None
-    tax_liens: Optional[float] = None
-    delinq_amnt: Optional[float] = None
-    acc_now_delinq: Optional[float] = None
-    chargeoff_within_12_mths: Optional[float] = None
-    mths_since_last_delinq: Optional[float] = None
+    loan_amnt: float | None = None
+    annual_inc: float | None = None
+    dti: float | None = None
+    fico_range_low: float | None = None
+    inq_last_6mths: float | None = None
+    open_acc: float | None = None
+    pub_rec: float | None = None
+    revol_bal: float | None = None
+    revol_util: float | None = None
+    total_acc: float | None = None
+    delinq_2yrs: float | None = None
+    pub_rec_bankruptcies: float | None = None
+    credit_history_months: float | None = None
+    loan_to_income: float | None = None
+    active_acct_ratio: float | None = None
+    collections_12_mths_ex_med: float | None = None
+    tax_liens: float | None = None
+    delinq_amnt: float | None = None
+    acc_now_delinq: float | None = None
+    chargeoff_within_12_mths: float | None = None
+    mths_since_last_delinq: float | None = None
     int_rate: float
 
     home_ownership: str
@@ -71,13 +71,13 @@ class Loan(BaseModel):
 
 # Reports whether the API is running.
 @app.get("/health")
-def health():
+def health() -> dict[str, str]:
     return {"status": "ok"}
 
 
 # Scores one loan and returns the approval decision.
 @app.post("/score")
-def score_loan(loan: Loan):
+def score_loan(loan: Loan) -> dict[str, float | bool]:
     df = pd.DataFrame([loan.model_dump()])
 
     proba = float(score(df).iloc[0])

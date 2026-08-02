@@ -10,7 +10,7 @@ from credit_risk.evaluate import breakeven_probability
 
 
 # Reads the input file, scores each loan, and saves the results.
-def main():
+def main() -> None:
     parser = argparse.ArgumentParser(description="Score a CSV of loans, writing probabilities and decisions.")
     parser.add_argument("input", type=Path, help="CSV of loans with an id and the feature columns")
     parser.add_argument("output", type=Path, help="where to write id, proba and approve")

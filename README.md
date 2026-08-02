@@ -159,8 +159,10 @@ src/        data loading, split, model pipelines, evaluation, drift, and serving
 scripts/    build_db, train_baseline, tune_lgbm, build_model (the artifact), score_batch
 app/        the FastAPI scoring service
 models/     the serialised model artifact and its metadata
+tests/      pytest suite for the economics, serving and API
 notebooks/  21 underwriter vs Lending Club, 22 validation, 23 decision economics, 24 tuning, 25 final test
 reports/    saved figures
+docs/       the model card
 ```
 
 ## Running
@@ -173,6 +175,13 @@ python scripts/build_model.py    # fit the final model into models/
 uvicorn app.main:app             # serve it, then open http://localhost:8000/docs
 ```
 
+Or serve it in a container (build the model first, the artifact is not in the image by default):
+
+```
+docker build -t credit-risk .
+docker run -p 8000:8000 credit-risk
+```
+
 ## Production layer
 
 The model is served, not just evaluated. `scripts/build_model.py` refits the tuned configuration
@@ -182,12 +191,12 @@ exposes a single `score` function, which both `scripts/score_batch.py` (offline 
 and `app/main.py` (a FastAPI `/score` route with a validated request contract) call, so batch and
 online serving cannot drift apart.
 
-Still to build:
-
-- **Quality gates.** pytest over the pure functions and the API contract, a Dockerfile, and GitHub
-  Actions for lint and tests.
-- **Model card.** Assumptions, target population, known bias, limits, and guidance on when not to
-  use the model.
+Around it are the quality gates: pytest over the pure economics, the serving contract, and the
+model's behaviour, with a golden test guarding against train/serve skew (`tests/`); a `Dockerfile`
+that packages the API; and a GitHub Actions workflow running ruff and the tests on every push
+(`.github/workflows`). The model card in `docs/model_card.md` states where the model is valid and
+where it is not: selection bias, calibration drift on newer vintages, and the economic assumptions
+behind the pricing.
 
 ## Later, if time
 

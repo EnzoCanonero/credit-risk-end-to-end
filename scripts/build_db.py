@@ -2,6 +2,7 @@
 
 import os
 from pathlib import Path
+from typing import cast
 
 import duckdb
 
@@ -21,7 +22,10 @@ def main() -> None:
             print(f"running {name}")
             con.execute((SQL_DIR / name).read_text())
 
-        rows = con.execute("SELECT count(*) FROM stg.loans_clean").fetchone()[0]
+        rows = cast(
+            tuple[int],
+            con.execute("SELECT count(*) FROM stg.loans_clean").fetchone(),
+        )[0]
         print(f"done: stg.loans_clean has {rows:,} rows")
 
 

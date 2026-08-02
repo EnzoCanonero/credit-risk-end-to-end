@@ -26,7 +26,7 @@ COLS = NUMERIC + CATEGORICAL
 
 
 # Fits the tuned model on all available data and writes its artifacts.
-def main():
+def main() -> None:
     df = load_loans()
     train, val, test = out_of_time_split(df)
 

@@ -1,5 +1,8 @@
 # Builds the project model pipelines.
 
+from collections.abc import Mapping
+from typing import Any
+
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
 from sklearn.pipeline import Pipeline
@@ -96,9 +99,9 @@ def build_tree_preprocessor(
 def build_lgbm(
     numeric: list[str] = NUMERIC,
     categorical: list[str] = CATEGORICAL,
-    params: dict | None = None,
+    params: Mapping[str, object] | None = None,
 ) -> Pipeline:
-    settings = {
+    settings: dict[str, Any] = {
         'n_estimators': 300,
         'learning_rate': 0.05,
         'num_leaves': 31,

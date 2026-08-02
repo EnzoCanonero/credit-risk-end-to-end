@@ -3,9 +3,11 @@
 import json
 from functools import lru_cache
 from pathlib import Path
+from typing import cast
 
 import joblib
 import pandas as pd
+from sklearn.pipeline import Pipeline
 
 from credit_risk.data import REPO_ROOT
 
@@ -16,10 +18,8 @@ METADATA = MODELS / "model_meta.json"
 
 # Loads and caches the trained model.
 @lru_cache(maxsize=1)
-def load_model(path: Path = ARTIFACT):
-    model = joblib.load(path)
-
-    return model
+def load_model(path: Path = ARTIFACT) -> Pipeline:
+    return cast(Pipeline, joblib.load(path))
 
 
 # Loads the model feature names.
@@ -27,14 +27,14 @@ def feature_columns() -> list[str]:
     meta = json.loads(METADATA.read_text())
     features = meta["features"]
 
-    return features
+    return cast(list[str], features)
 
 
 # Loads the numeric feature names.
 def numeric_columns() -> list[str]:
     meta = json.loads(METADATA.read_text())
 
-    return meta["numeric"]
+    return cast(list[str], meta["numeric"])
 
 
 # Scores loan applications for default risk.

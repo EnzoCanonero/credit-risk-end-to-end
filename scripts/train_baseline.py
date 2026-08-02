@@ -40,7 +40,7 @@ FEATURE_SETS = {
     ),
 }
 
-MODELS: dict[str, Callable[..., Pipeline]] = {
+MODELS: dict[str, Callable[[list[str], list[str]], Pipeline]] = {
     "logistic": build_logistic,
     "lgbm": build_lgbm,
 }
@@ -48,12 +48,12 @@ MODELS: dict[str, Callable[..., Pipeline]] = {
 
 # Fits one feature set and returns its validation metrics.
 def evaluate_features(
-    train,
-    val,
-    numeric,
-    categorical,
-    build_model: Callable[..., Pipeline] = build_logistic,
-) -> dict:
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    numeric: list[str],
+    categorical: list[str],
+    build_model: Callable[[list[str], list[str]], Pipeline] = build_logistic,
+) -> dict[str, float]:
     cols = numeric + categorical
     pipe = build_model(numeric, categorical)
     pipe.fit(train[cols], train[TARGET])
@@ -73,7 +73,12 @@ def evaluate_features(
 
 
 # Compares raw and calibrated LightGBM probabilities.
-def calibration_check(train, val, numeric, categorical) -> None:
+def calibration_check(
+    train: pd.DataFrame,
+    val: pd.DataFrame,
+    numeric: list[str],
+    categorical: list[str],
+) -> None:
     cols = numeric + categorical
     y = val[TARGET].values
 
