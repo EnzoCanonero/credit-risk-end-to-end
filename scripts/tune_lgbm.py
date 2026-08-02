@@ -7,6 +7,7 @@ from typing import Any, cast
 import optuna
 from optuna.samplers import TPESampler
 from lightgbm import LGBMClassifier, early_stopping
+import numpy as np
 import pandas as pd
 from sklearn.metrics import log_loss
 
@@ -60,7 +61,7 @@ def objective(
 
     trial.set_user_attr("n_estimators", clf.best_iteration_)
 
-    proba = clf.predict_proba(X_val)[:, 1]
+    proba = np.asarray(clf.predict_proba(X_val))[:, 1]
     return log_loss(y_val, proba)
 
 
