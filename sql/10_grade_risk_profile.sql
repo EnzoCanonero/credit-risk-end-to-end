@@ -1,4 +1,4 @@
---  What does a Lending Club grade actually encode about the borrower?
+-- Profiles borrower risk across Lending Club grades.
 
 WITH grade_summary AS (
   SELECT
@@ -33,7 +33,6 @@ SELECT
 
   ROUND(avg_int_rate, 2) AS avg_int_rate,
 
-  -- The borrower profile behind the grade: this is what Lending Club priced on.
   ROUND(avg_fico, 0) AS avg_fico,
   ROUND(avg_dti, 2) AS avg_dti,
   ROUND(avg_credit_history_months, 0) AS avg_credit_history_months,

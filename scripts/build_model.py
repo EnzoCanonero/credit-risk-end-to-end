@@ -1,3 +1,5 @@
+# Trains and saves the final credit risk model.
+
 import json
 from datetime import date
 
@@ -23,12 +25,11 @@ CATEGORICAL = UNDERWRITER_CATEGORICAL + LC_VERDICT_CATEGORICAL
 COLS = NUMERIC + CATEGORICAL
 
 
+# Fits the tuned model on all available data and writes its artifacts.
 def main():
     df = load_loans()
     train, val, test = out_of_time_split(df)
 
-    # All available data. The test already gave its unbiased estimate in notebook 25, so holding it
-    # out of the shipped model now would only waste it.
     fit_df = pd.concat([train, val, test])
 
     best = json.loads(PARAMS.read_text())
@@ -38,8 +39,6 @@ def main():
     MODELS.mkdir(exist_ok=True)
     joblib.dump(pipe, ARTIFACT)
 
-    # A small json next to the artifact so the file is self-describing: what it is, what it was
-    # fitted on, and where its measured performance lives.
     vintages = pd.to_datetime(fit_df["issue_month"])
     meta = {
         "params": best,

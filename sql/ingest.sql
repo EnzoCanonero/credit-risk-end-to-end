@@ -1,3 +1,5 @@
+-- Loads the accepted and rejected loan files into DuckDB.
+
 CREATE SCHEMA IF NOT EXISTS raw;
 
 CREATE OR REPLACE TABLE raw.loans_accepted AS

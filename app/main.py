@@ -1,3 +1,5 @@
+# Exposes the credit risk model through an API.
+
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -8,10 +10,9 @@ import pandas as pd
 from credit_risk.serving import score, load_model
 from credit_risk.evaluate import breakeven_probability
 
+# Loads the model when the API starts.
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm the model at startup, not on the first request: the app fails fast if the artifact is
-    # missing, and no single request pays the one-off load cost.
     load_model()
     yield
 
@@ -20,13 +21,6 @@ app = FastAPI(title="Credit risk scoring", lifespan=lifespan)
 
 
 class Loan(BaseModel):
-    # Borrower numerics are optional. Some are missing by nature, mths_since_last_delinq is undefined
-    # for a borrower who was never delinquent, and the pipeline imputes any that are absent, so a
-    # caller sends what it has. int_rate stays required: it is Lending Club's price, always set, and
-    # the approve decision needs it. 
-    
-    # Categoricals are required too, because the encoder needs a known
-    # category; handling unseen ones is a later refinement.
     loan_amnt: Optional[float] = None
     annual_inc: Optional[float] = None
     dti: Optional[float] = None
@@ -58,7 +52,6 @@ class Loan(BaseModel):
     emp_length: str
     grade: str
 
-    # A real loan, so the /docs "Try it out" form is filled in and testable straight away.
     model_config = {
         "json_schema_extra": {
             "example": {
@@ -76,15 +69,15 @@ class Loan(BaseModel):
     }
 
 
+# Reports whether the API is running.
 @app.get("/health")
 def health():
     return {"status": "ok"}
 
 
+# Scores one loan and returns the approval decision.
 @app.post("/score")
 def score_loan(loan: Loan):
-    # One row in, one score out. score() handles the feature contract and the numeric coercion, so
-    # there is nothing to prepare here beyond framing the payload.
     df = pd.DataFrame([loan.model_dump()])
 
     proba = float(score(df).iloc[0])

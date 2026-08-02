@@ -1,16 +1,10 @@
-# Baseline training run: load -> split -> fit -> evaluate.
-#
-# Fits three feature sets with two models on train and scores them on validation.
-# The comparison is the point: can borrower data alone match Lending Club's own price,
-# and does the tree extract signal the linear model leaves on the table?
-#
-# The test set stays untouched until the final model is chosen.
+# Compares baseline credit risk models on the validation set.
 
 from collections.abc import Callable
 from pathlib import Path
 
 import matplotlib
-matplotlib.use("Agg")  # non-interactive: the script saves the figure instead of showing it
+matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 import pandas as pd
 from sklearn.calibration import CalibratedClassifierCV
@@ -52,6 +46,7 @@ MODELS: dict[str, Callable[..., Pipeline]] = {
 }
 
 
+# Fits one feature set and returns its validation metrics.
 def evaluate_features(
     train,
     val,
@@ -59,7 +54,6 @@ def evaluate_features(
     categorical,
     build_model: Callable[..., Pipeline] = build_logistic,
 ) -> dict:
-    #Fit on train, score on validation, return one flat row of metrics.
     cols = numeric + categorical
     pipe = build_model(numeric, categorical)
     pipe.fit(train[cols], train[TARGET])
@@ -70,19 +64,16 @@ def evaluate_features(
     metrics = discrimination_metrics(y, proba)
     murphy = murphy_decomposition(y, proba)
 
-    # How the model ranks and how honest its probabilities are. What a decision on them is worth
-    # in currency is priced in notebooks/23_decision_economics.
     return {
         "roc_auc": metrics["roc_auc"],
         "pr_auc": metrics["pr_auc"],
         "brier": metrics["brier"],
         "resolution": murphy["resolution"],
     }
-    
 
+
+# Compares raw and calibrated LightGBM probabilities.
 def calibration_check(train, val, numeric, categorical) -> None:
-    #Is LightGBM already calibrated, or does isotonic help? Report Brier and save the diagram.
-
     cols = numeric + categorical
     y = val[TARGET].values
 
@@ -115,6 +106,7 @@ def calibration_check(train, val, numeric, categorical) -> None:
     print(f"  diagram -> {out}")
 
 
+# Runs each baseline and saves the calibration chart.
 def main() -> None:
     df = load_loans()
     train, val, test = out_of_time_split(df)

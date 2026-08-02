@@ -1,3 +1,5 @@
+# Loads the trained model and scores loan applications.
+
 import json
 from functools import lru_cache
 from pathlib import Path
@@ -12,6 +14,7 @@ ARTIFACT = MODELS / "model.joblib"
 METADATA = MODELS / "model_meta.json"
 
 
+# Loads and caches the trained model.
 @lru_cache(maxsize=1)
 def load_model(path: Path = ARTIFACT):
     model = joblib.load(path)
@@ -19,6 +22,7 @@ def load_model(path: Path = ARTIFACT):
     return model
 
 
+# Loads the model feature names.
 def feature_columns() -> list[str]:
     meta = json.loads(METADATA.read_text())
     features = meta["features"]
@@ -26,12 +30,14 @@ def feature_columns() -> list[str]:
     return features
 
 
+# Loads the numeric feature names.
 def numeric_columns() -> list[str]:
     meta = json.loads(METADATA.read_text())
 
     return meta["numeric"]
 
 
+# Scores loan applications for default risk.
 def score(loans: pd.DataFrame) -> pd.Series:
     cols = feature_columns()
 

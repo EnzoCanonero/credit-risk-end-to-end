@@ -1,4 +1,4 @@
--- Loan-status mix by vintage: shows that recent loans are still largely "Current" (not yet observable)
+-- Shows the loan-status mix by vintage.
 
 WITH base AS (
   SELECT

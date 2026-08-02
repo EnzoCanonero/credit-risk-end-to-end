@@ -1,3 +1,4 @@
+# Keeps generated data and local Python artifacts out of version control.
 data/raw
 *.duckdb
 __pycache__/

@@ -1,3 +1,4 @@
+# Runs linting and tests on pushes and pull requests.
 name: Tests
 
 on:

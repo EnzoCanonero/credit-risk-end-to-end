@@ -1,4 +1,4 @@
-# Baseline model: preprocessing + logistic regression pipeline.
+# Builds the project model pipelines.
 
 from sklearn.compose import ColumnTransformer
 from sklearn.impute import SimpleImputer
@@ -43,13 +43,10 @@ UNDERWRITER_CATEGORICAL = [
     'emp_length',
 ]
 
-# The builders default to the union set, the model the project carries forward past notebook 21.
-# The comparison code in train_baseline and notebook 21 still passes each set explicitly, so this
-# only decides what a bare build_*() means. A caller that feeds underwriter-only data now gets a
-# loud error on the missing int_rate/grade columns, instead of the union columns being dropped.
 NUMERIC = UNDERWRITER_NUMERIC + LC_VERDICT_NUMERIC
 CATEGORICAL = UNDERWRITER_CATEGORICAL + LC_VERDICT_CATEGORICAL
 
+# Builds preprocessing for the logistic model.
 def build_preprocessor(
     numeric: list[str] = NUMERIC,
     categorical: list[str] = CATEGORICAL,
@@ -66,6 +63,7 @@ def build_preprocessor(
     return ct
 
 
+# Builds the logistic regression pipeline.
 def build_logistic(
     numeric: list[str] = NUMERIC,
     categorical: list[str] = CATEGORICAL,
@@ -79,13 +77,11 @@ def build_logistic(
     return pipe
 
 
+# Builds preprocessing for the LightGBM model.
 def build_tree_preprocessor(
     numeric: list[str] = NUMERIC,
     categorical: list[str] = CATEGORICAL,
 ) -> ColumnTransformer:
-    # Trees want the opposite of the logistic preprocessing: numeric passthrough (LightGBM
-    # sends NaN down a learned branch, and splits are rank-based, so no impute or scale) and
-    # ordinal-encoded categoricals (integer codes, not one-hot, so 50 states stay one column).
     ct = ColumnTransformer([
         ('num', 'passthrough', numeric),
         ('cat',
@@ -93,20 +89,15 @@ def build_tree_preprocessor(
         categorical)
     ])
 
-    # Emit a named DataFrame instead of a bare array: silences the fit/predict feature-name
-    # mismatch, and keeps real names on LightGBM's feature_importances_ (not Column_0...).
     return ct.set_output(transform="pandas")
 
 
+# Builds the LightGBM pipeline.
 def build_lgbm(
     numeric: list[str] = NUMERIC,
     categorical: list[str] = CATEGORICAL,
     params: dict | None = None,
 ) -> Pipeline:
-    # No class_weight: imbalance is handled at the threshold, same choice as the logistic.
-    # The hand-set defaults are the baseline. A params dict overrides them, so the same builder
-    # serves both the baseline and the tuned model from scripts/tune_lgbm.py. verbose stays in the
-    # defaults, so a passed dict does not have to carry it.
     settings = {
         'n_estimators': 300,
         'learning_rate': 0.05,

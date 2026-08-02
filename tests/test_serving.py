@@ -1,3 +1,5 @@
+# Checks model scoring behavior and validation.
+
 import pandas as pd
 import pytest
 
@@ -9,6 +11,7 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+# Checks that scoring preserves rows and returns valid probabilities.
 def test_score_shape_and_range(valid_payload):
     df = pd.DataFrame([valid_payload, valid_payload])
     s = score(df)
@@ -17,6 +20,7 @@ def test_score_shape_and_range(valid_payload):
     assert ((s >= 0) & (s <= 1)).all()
 
 
+# Checks that scoring rejects input with a missing feature.
 def test_score_missing_column_raises(valid_payload):
     df = pd.DataFrame([valid_payload]).drop(columns=["int_rate"])
     with pytest.raises(ValueError) as exc:
@@ -25,6 +29,7 @@ def test_score_missing_column_raises(valid_payload):
     assert "int_rate" in str(exc.value)
 
 
+# Checks that a higher interest rate receives a higher risk score.
 def test_higher_rate_scores_higher(valid_payload):
     low = {**valid_payload, "int_rate": 6.0}
     high = {**valid_payload, "int_rate": 26.0}
@@ -33,6 +38,7 @@ def test_higher_rate_scores_higher(valid_payload):
     assert s.iloc[1] > s.iloc[0]
 
 
+# Checks that the reference loan keeps its expected score.
 def test_score_is_stable(valid_payload):
     s = score(pd.DataFrame([valid_payload]))
 

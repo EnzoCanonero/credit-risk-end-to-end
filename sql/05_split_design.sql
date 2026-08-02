@@ -1,4 +1,4 @@
--- How are originations distributed over time, and where do the train / validation / test cutoffs fall?
+-- Finds the time cutoffs for the train, validation and test splits.
 
 WITH by_month AS (
     SELECT

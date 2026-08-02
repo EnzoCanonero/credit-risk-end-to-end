@@ -1,7 +1,4 @@
--- For loans issued in each quarter, how quickly do bad outcomes accumulate as the loans age?
-
--- This query uses last_pymnt_d from the raw table to estimate when the loan outcome happened. 
--- That is fine for portfolio analysis, but it should not be used as a model input feature.
+-- Tracks how bad outcomes accumulate as each loan vintage ages.
 
 WITH loans AS (
   SELECT
@@ -115,6 +112,4 @@ FROM curve_rates
 ORDER BY
   vintage_quarter DESC,
   months_on_book;
-
-
 

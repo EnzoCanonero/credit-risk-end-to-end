@@ -1,4 +1,4 @@
-# Drift diagnostics: how far did the feature distributions move between two samples?
+# Measures feature drift between data samples.
 
 import numpy as np
 import pandas as pd
@@ -9,12 +9,11 @@ from lightgbm import LGBMClassifier
 from credit_risk.model import build_tree_preprocessor
 
 
+# Calculates the population stability index.
 def population_stability_index(expected, actual, n_bins: int = 10) -> float:
     edges = np.quantile(expected, np.linspace(0, 1, n_bins + 1))
     edges = np.unique(edges)
 
-    # Widen the outer edges, otherwise actual values beyond the reference range become NaN and are
-    # dropped. Those are the most shifted rows, so losing them understates the drift.
     edges[0], edges[-1] = -np.inf, np.inf
 
     e = pd.cut(expected, edges).value_counts(normalize=True).sort_index()
@@ -29,6 +28,7 @@ def population_stability_index(expected, actual, n_bins: int = 10) -> float:
     return psi
 
 
+# Tests whether the model can distinguish train and validation rows.
 def adversarial_validation(train, val, numeric, categorical, cv: int = 3) -> dict:
     cols = numeric + categorical
 
@@ -45,10 +45,8 @@ def adversarial_validation(train, val, numeric, categorical, cv: int = 3) -> dic
         ))
     ])
 
-    # Scored out of sample: fitting and predicting on the same rows would measure memorisation.
     auc = cross_val_score(pipe, X, y, cv=cv, scoring="roc_auc").mean()
 
-    # Refit on everything just to read which features give the period away.
     pipe.fit(X, y)
     importances = pd.Series(
         pipe.named_steps["clf"].feature_importances_,

@@ -1,3 +1,4 @@
+# Defines the package, dependencies, and build settings.
 [project]
 name = "credit-risk"
 version = "0.1.0"

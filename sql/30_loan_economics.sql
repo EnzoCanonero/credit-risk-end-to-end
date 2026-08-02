@@ -1,6 +1,4 @@
--- What does a loan earn when it is repaid, and what does it cost when it defaults?
--- The first query bands the rate to show the shape. The second returns the two constants that
--- evaluate.py carries as defaults.
+-- Estimates repayment margins and default losses from past loans.
 
 WITH bands AS (
   SELECT
@@ -19,7 +17,6 @@ SELECT
   count(*) FILTER (WHERE b.target_bad = 0) AS loans_repaid,
   count(*) FILTER (WHERE b.target_bad = 1) AS loans_charged_off,
 
-  -- Value weighted, not an average of per-loan ratios: portfolio profit follows the amounts.
   ROUND(
     SUM(a.total_rec_int) FILTER (WHERE b.target_bad = 0)
     / SUM(a.loan_amnt) FILTER (WHERE b.target_bad = 0),
@@ -69,5 +66,3 @@ SELECT
   ) AS loss_fraction
 
 FROM train_outcomes;
-
-

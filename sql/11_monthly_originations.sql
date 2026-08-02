@@ -1,5 +1,4 @@
--- How did Lending Club loan volume and bad-loan rate change over time, and did
--- underwriting standards drift along with them?
+-- Tracks monthly loan volume, bad rates and borrower quality.
 
 WITH month_summary AS (
   SELECT
@@ -40,8 +39,6 @@ SELECT
     2
   ) AS bad_rate_3_month_avg,
 
-  -- Borrower quality over time. If bad rate rises while FICO falls or DTI climbs,
-  -- the rising risk is a lending-standards story, not bad luck.
   ROUND(avg_fico, 0) AS avg_fico,
   ROUND(avg_dti, 2) AS avg_dti
 

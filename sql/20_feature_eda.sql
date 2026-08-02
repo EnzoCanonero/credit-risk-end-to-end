@@ -1,7 +1,5 @@
--- Feature EDA for the underwriter model: distributions, outliers, and how each
--- feature relates to default. Justifies the preprocessing choices downstream.
+-- Explores feature distributions and their relationship with default.
 
--- Tail percentiles expose skew and outliers that may need robust preprocessing.
 WITH feature_stats AS(
   SELECT
     feature,
@@ -29,7 +27,6 @@ SELECT *
 FROM feature_stats;
 
 
--- Default rate by 20-point FICO band: the clearest view of credit-quality monotonicity.
 WITH fico_bands AS (
   SELECT
     floor(fico_range_low / 20)::INTEGER * 20 AS fico_band_low,
@@ -47,7 +44,6 @@ GROUP BY fico_band_low
 ORDER BY fico_band_low;
 
 
--- Default rate by 10-point DTI band: checks whether leverage risk rises monotonically.
 WITH dti_bands AS(
   SELECT
    floor(dti / 10)::INTEGER * 10 AS dti_band_low,
@@ -66,7 +62,6 @@ GROUP BY dti_band_low, dti_band
 ORDER BY dti_band_low;
   
 
--- Purpose-level bad rate and portfolio share: risk matters only alongside exposure.
 SELECT
   purpose,
   COUNT(*) AS loans,
@@ -80,7 +75,6 @@ GROUP BY purpose
 ORDER BY bad_rate DESC;
 
 
--- Engineered ratio: does the amount borrowed relative to income separate default?
 WITH lti_bands AS (
   SELECT
     CASE
@@ -104,7 +98,6 @@ GROUP BY lti_band
 ORDER BY lti_band;
 
 
--- Engineered ratio: share of credit lines currently open, out of the borrower's history.
 WITH active_bands AS (
   SELECT
     CASE
@@ -127,8 +120,6 @@ GROUP BY active_band
 ORDER BY active_band;
 
 
--- Derogatory events are mostly zero. The question is whether any occurrence lifts default,
--- and by how much. bad_rate_none vs bad_rate_event is the marginal signal each one carries.
 WITH events AS (
   SELECT target_bad, event, value > 0 AS has_event
   FROM stg.loans_clean
@@ -153,8 +144,6 @@ GROUP BY event
 ORDER BY bad_rate_event DESC;
 
 
--- mths_since_last_delinq is NULL when the borrower has never been delinquent. That "never"
--- is information, not a gap: check whether it separates default before deciding how to impute.
 SELECT
   CASE
     WHEN mths_since_last_delinq IS NULL THEN 'never delinquent'
@@ -167,7 +156,6 @@ GROUP BY delinquency_history
 ORDER BY bad_rate;
 
 
--- FICO-to-price correlation first, then each numeric feature's linear link to default.
 WITH correlations AS (
   SELECT
     corr(fico_range_low, int_rate) AS fico_vs_int_rate,

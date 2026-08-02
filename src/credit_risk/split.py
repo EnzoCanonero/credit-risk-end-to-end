@@ -1,11 +1,11 @@
-# Out-of-time split: train on the oldest vintages, tune on the middle, test on the most recent.
-# Follows split from sql/05_split_design.sql
+# Splits loan data into train, validation, and test sets.
 
 import pandas as pd
 import math
 
 Splits = tuple[pd.DataFrame,pd.DataFrame,pd.DataFrame]
 
+# Splits rows in time order.
 def out_of_time_split(
     df: pd.DataFrame, 
     val_frac: float=0.20, 
@@ -24,6 +24,7 @@ def out_of_time_split(
 
     return train, val, test
 
+# Splits rows after a reproducible shuffle.
 def random_split(
     df: pd.DataFrame,
     val_frac: float=0.20,

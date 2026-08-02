@@ -1,4 +1,4 @@
--- Checks loans maturation timeframes.
+-- Checks how quickly charged-off loans mature.
 
 WITH loans AS (
   SELECT
