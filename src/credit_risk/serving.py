@@ -22,19 +22,19 @@ def load_model(path: Path = ARTIFACT) -> Pipeline:
     return cast(Pipeline, joblib.load(path))
 
 
+@lru_cache(maxsize=1)
+def _metadata() -> dict[str, object]:
+    return json.loads(METADATA.read_text())
+
+
 # Loads the model feature names.
 def feature_columns() -> list[str]:
-    meta = json.loads(METADATA.read_text())
-    features = meta["features"]
-
-    return cast(list[str], features)
+    return cast(list[str], _metadata()["features"])
 
 
 # Loads the numeric feature names.
 def numeric_columns() -> list[str]:
-    meta = json.loads(METADATA.read_text())
-
-    return cast(list[str], meta["numeric"])
+    return cast(list[str], _metadata()["numeric"])
 
 
 # Scores loan applications for default risk.
