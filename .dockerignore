@@ -1,0 +1,11 @@
+# Keeps local data and development files out of the image.
+data/
+.git/
+notebooks/
+reports/
+tests/
+docs/
+.github/
+__pycache__/
+*.egg-info/
+.ipynb_checkpoints/
