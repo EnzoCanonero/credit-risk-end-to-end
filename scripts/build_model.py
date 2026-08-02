@@ -1,19 +1,5 @@
-# Step 1 — build the production model artifact.
-#
-# The deployable unit is not this script, it is what it writes: the fitted Pipeline serialised to
-# disk, plus a small metadata file describing it. Everything downstream (batch scoring, the API)
-# loads that artifact and never retrains. A model that retrains per request is the surest sign of
-# code that has never been served.
-#
-# The shipped model is refit on all available data, train, validation and test together. The test
-# has already done its job in notebook 25, giving the unbiased estimate on the same configuration
-# fit on train+val; once that estimate exists, holding data back from the model that actually goes
-# out only wastes it. So the reported numbers describe the configuration, not this exact object,
-# and the metadata says as much.
-
 import json
 from datetime import date
-from pathlib import Path
 
 import joblib
 import pandas as pd
@@ -58,6 +44,8 @@ def main():
     meta = {
         "params": best,
         "features": COLS,
+        "numeric": NUMERIC,
+        "categorical": CATEGORICAL,
         "n_fit_rows": len(fit_df),
         "fit_vintages": [vintages.min().strftime("%Y-%m"), vintages.max().strftime("%Y-%m")],
         "built": date.today().isoformat(),

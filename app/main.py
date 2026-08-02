@@ -1,12 +1,3 @@
-# Step 4 — the online endpoint. One route: send one loan, get its default probability and the
-# approve/reject decision back. A minimal FastAPI app, not a full service.
-#
-# Two ideas carry it:
-#   - The model is loaded once (serving.load_model is cached), never per request.
-#   - The request body is validated at the boundary by a pydantic model. That schema IS the API's
-#     data contract: anything that does not fit is rejected with a 422 before it ever reaches the
-#     model. Validation at the edge is what keeps garbage out of a served model.
-
 from contextlib import asynccontextmanager
 from typing import Optional
 
@@ -16,14 +7,6 @@ import pandas as pd
 
 from credit_risk.serving import score, load_model
 from credit_risk.evaluate import breakeven_probability
-
-# The seven categorical fields. Every other feature is numeric, which is how we coerce a payload
-# back to float below.
-CATEGORICAL = (
-    "home_ownership", "purpose", "addr_state", "verification_status",
-    "application_type", "emp_length", "grade",
-)
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -37,13 +20,12 @@ app = FastAPI(title="Credit risk scoring", lifespan=lifespan)
 
 
 class Loan(BaseModel):
-    # The request schema, and the API's data contract: FastAPI rejects anything that does not fit
-    # with a 422 before it reaches the model.
-    #
     # Borrower numerics are optional. Some are missing by nature, mths_since_last_delinq is undefined
     # for a borrower who was never delinquent, and the pipeline imputes any that are absent, so a
     # caller sends what it has. int_rate stays required: it is Lending Club's price, always set, and
-    # the approve decision needs it. Categoricals are required too, because the encoder needs a known
+    # the approve decision needs it. 
+    
+    # Categoricals are required too, because the encoder needs a known
     # category; handling unseen ones is a later refinement.
     loan_amnt: Optional[float] = None
     annual_inc: Optional[float] = None
@@ -101,12 +83,9 @@ def health():
 
 @app.post("/score")
 def score_loan(loan: Loan):
+    # One row in, one score out. score() handles the feature contract and the numeric coercion, so
+    # there is nothing to prepare here beyond framing the payload.
     df = pd.DataFrame([loan.model_dump()])
-
-    # A missing numeric arrives as None, which makes its column object dtype and LightGBM rejects
-    # it. Coerce the numerics to float so None becomes NaN and the pipeline's imputer handles it.
-    num = [c for c in df.columns if c not in CATEGORICAL]
-    df[num] = df[num].astype(float)
 
     proba = float(score(df).iloc[0])
     approve = bool(proba < breakeven_probability(loan.int_rate))
