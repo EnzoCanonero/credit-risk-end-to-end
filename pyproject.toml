@@ -18,6 +18,9 @@ dependencies = [
 dev = [
     "jupyterlab",
     "ipykernel",
+    "pytest",
+    "httpx",
+    "ruff",
 ]
 
 [build-system]
