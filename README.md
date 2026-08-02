@@ -1,5 +1,7 @@
 # Credit risk on Lending Club
 
+[![Tests](https://github.com/EnzoCanonero/credit-risk-end-to-end/actions/workflows/ci.yml/badge.svg)](https://github.com/EnzoCanonero/credit-risk-end-to-end/actions/workflows/ci.yml)
+
 Default-risk models for Lending Club's 36-month loans, built from what a lender knows at
 origination. The project runs three questions in sequence: whose information actually prices a
 loan, whether the model's probabilities are honest enough to act on, and what a lending decision
