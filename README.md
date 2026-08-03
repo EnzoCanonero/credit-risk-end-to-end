@@ -83,6 +83,28 @@ below do the modelling. The files are numbered in groups:
 - **`30`** is the loan economics: interest earned on repaid loans, principal lost on defaults, and
   the two constants the decision layer prices with.
 
+### AWS analytical parity
+
+The cloud layer preserves the local data contract rather than creating a second analytical truth.
+Curated `v1` stores 2,260,668 unique loans in S3 as 12 Snappy Parquet files partitioned by source
+snapshot and issue year. The Glue Data Catalog registers their schema and partition locations;
+Athena queries the files in place through an external table.
+
+[`scripts/run_athena_analysis.py`](scripts/run_athena_analysis.py) executes the same four SQL files
+in DuckDB and Athena, disables Athena result reuse, and writes a small metrics file only if every
+ordered value matches. In the recorded Athena engine v3 run, every query matched. The rate-band
+economics scanned 20.01 MiB, 5.38% of the 390,019,161-byte curated dataset, and the training-book
+constants scanned 6.60 MiB, 1.78%. These are measured scan shares from explicit Parquet projection
+and Hive partition predicates, not an inferred savings claim.
+
+> Reproduced the credit-risk economics on Athena with exact DuckDB parity while scanning 5.38% of
+> curated bytes for the portfolio rate-band analysis and 1.78% for training constants.
+
+The analysis also makes the censoring decision visible: the unresolved share of recent 60-month
+loans rises from 17.15% for the 2014 vintage to 90.01% for 2018, so their resolved-only bad rate is
+not a lifetime-default target. See the [full parity and scan report](reports/athena/2018Q4_v1.md),
+the [shared Athena SQL](sql/athena/), and the [catalog bootstrap notes](infra/aws/athena/README.md).
+
 ## Studies
 
 The result above sits on five notebooks, each one question, in the order they build. Every one
@@ -163,7 +185,7 @@ app/        the FastAPI scoring service
 models/     the serialised model artifact and its metadata
 tests/      pytest suite for curation, economics, serving and API
 notebooks/  21 underwriter vs Lending Club, 22 validation, 23 decision economics, 24 tuning, 25 final test
-reports/    saved figures
+reports/    saved figures and the verified Athena parity report
 docs/       the model card
 infra/      reviewed AWS service configuration applied manually with the AWS CLI
 ```
@@ -174,6 +196,7 @@ infra/      reviewed AWS service configuration applied manually with the AWS CLI
 pip install -e .                 # into a Python 3.11 environment
 python scripts/build_db.py       # build data/credit_risk.duckdb from the raw CSVs
 python scripts/export_curated.py # write partitioned Parquet under data/curated/
+python scripts/run_athena_analysis.py # verify DuckDB/Athena parity and record scan metrics
 python scripts/train_baseline.py # the model comparison
 python scripts/build_model.py    # fit the final model into models/
 uvicorn app.main:app             # serve it, then open http://localhost:8000/docs
