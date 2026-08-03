@@ -10,7 +10,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 DB_PATH = REPO_ROOT / "data" / "credit_risk.duckdb"
 SQL_DIR = REPO_ROOT / "sql"
 
-BUILD_FILES = ["ingest.sql", "01_clean_schema.sql"]
+BUILD_FILES = ["ingest.sql", "00_curated_accepted.sql", "01_clean_schema.sql"]
 
 
 # Runs the table-building SQL files in dependency order.

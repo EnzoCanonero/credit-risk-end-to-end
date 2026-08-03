@@ -17,7 +17,7 @@ def load_loans(db_path: Path = DB_PATH, table: str = "stg.loans_clean") -> pd.Da
 
 
 # Loads the loan outcome fields.
-def load_outcomes(db_path: Path = DB_PATH, table: str = "raw.loans_accepted") -> pd.DataFrame:
+def load_outcomes(db_path: Path = DB_PATH, table: str = "curated.loans_accepted") -> pd.DataFrame:
 
     with duckdb.connect(str(db_path), read_only=True) as con:
         return con.execute(

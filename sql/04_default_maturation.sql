@@ -6,7 +6,7 @@ WITH loans AS (
     loan_status,
     try_strptime(issue_d, '%b-%Y')::DATE AS issue_month,
     try_strptime(last_pymnt_d, '%b-%Y')::DATE AS outcome_month
-  FROM raw.loans_accepted
+  FROM curated.loans_accepted
   WHERE issue_d IS NOT NULL
 ),
 

@@ -11,7 +11,7 @@ WITH loans AS (
       WHEN loan_status = 'Charged Off' THEN 1
       WHEN loan_status = 'Fully Paid' THEN 0
     END AS target_bad
-  FROM raw.loans_accepted
+  FROM curated.loans_accepted
   WHERE loan_status IN ('Charged Off', 'Fully Paid')
     AND issue_d IS NOT NULL
     AND last_pymnt_d IS NOT NULL
@@ -112,4 +112,3 @@ FROM curve_rates
 ORDER BY
   vintage_quarter DESC,
   months_on_book;
-

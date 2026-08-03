@@ -30,7 +30,7 @@ SELECT
   ) AS principal_lost
 
 FROM bands AS b
-JOIN raw.loans_accepted AS a ON a.id = b.id
+JOIN curated.loans_accepted AS a ON a.id = b.id
 GROUP BY b.rate_band
 ORDER BY b.rate_band;
 
@@ -44,7 +44,7 @@ WITH train_outcomes AS (
     a.total_rec_prncp,
     a.recoveries
   FROM stg.loans_clean AS c
-  JOIN raw.loans_accepted AS a ON a.id = c.id
+  JOIN curated.loans_accepted AS a ON a.id = c.id
   WHERE c.issue_month < DATE '2015-03-01'
 )
 

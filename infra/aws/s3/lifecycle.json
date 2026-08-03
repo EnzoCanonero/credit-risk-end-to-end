@@ -1,0 +1,59 @@
+{
+  "Rules": [
+    {
+      "ID": "abort-incomplete-multipart-uploads",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": ""
+      },
+      "AbortIncompleteMultipartUpload": {
+        "DaysAfterInitiation": 7
+      }
+    },
+    {
+      "ID": "expire-athena-query-results",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "athena-results/"
+      },
+      "Expiration": {
+        "Days": 7
+      },
+      "NoncurrentVersionExpiration": {
+        "NoncurrentDays": 1
+      }
+    },
+    {
+      "ID": "remove-expired-athena-delete-markers",
+      "Status": "Enabled",
+      "Filter": {
+        "Prefix": "athena-results/"
+      },
+      "Expiration": {
+        "ExpiredObjectDeleteMarker": true
+      }
+    },
+    {
+      "ID": "archive-raw-source-data",
+      "Status": "Enabled",
+      "Filter": {
+        "And": {
+          "Prefix": "raw/",
+          "ObjectSizeGreaterThan": 131071
+        }
+      },
+      "Transitions": [
+        {
+          "Days": 90,
+          "StorageClass": "GLACIER_IR"
+        }
+      ],
+      "NoncurrentVersionTransitions": [
+        {
+          "NoncurrentDays": 90,
+          "StorageClass": "GLACIER_IR"
+        }
+      ]
+    }
+  ]
+}

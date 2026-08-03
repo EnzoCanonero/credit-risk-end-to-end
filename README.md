@@ -156,15 +156,16 @@ move the currency figures, so the real check is the final test.
 ## Layout
 
 ```
-sql/        ingestion, the modelling table, and the EDA behind every feature choice
+sql/        ingestion, the curated contract, the modelling table, and feature-choice EDA
 src/        data loading, split, model pipelines, evaluation, drift, and serving
-scripts/    build_db, train_baseline, tune_lgbm, build_model (the artifact), score_batch
+scripts/    build_db, export_curated, training, tuning, artifact build, and batch scoring
 app/        the FastAPI scoring service
 models/     the serialised model artifact and its metadata
-tests/      pytest suite for the economics, serving and API
+tests/      pytest suite for curation, economics, serving and API
 notebooks/  21 underwriter vs Lending Club, 22 validation, 23 decision economics, 24 tuning, 25 final test
 reports/    saved figures
 docs/       the model card
+infra/      reviewed AWS service configuration applied manually with the AWS CLI
 ```
 
 ## Running
@@ -172,10 +173,17 @@ docs/       the model card
 ```
 pip install -e .                 # into a Python 3.11 environment
 python scripts/build_db.py       # build data/credit_risk.duckdb from the raw CSVs
+python scripts/export_curated.py # write partitioned Parquet under data/curated/
 python scripts/train_baseline.py # the model comparison
 python scripts/build_model.py    # fit the final model into models/
 uvicorn app.main:app             # serve it, then open http://localhost:8000/docs
 ```
+
+The curated export keeps every accepted-loan source column, adds typed timing and term fields, and
+removes only the non-loan summary rows appended to the CSV. It writes immutable schema version `v1`
+as Snappy Parquet, partitioned by `source_snapshot` and `issue_year`. The exporter refuses to
+overwrite an existing version directory; rebuild into a new schema version or remove a reviewed
+local generated export explicitly.
 
 Or serve it in a container (build the model first, the artifact is not in the image by default):
 
