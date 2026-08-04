@@ -1,0 +1,19 @@
+# Builds the container used for Lambda scoring.
+FROM public.ecr.aws/lambda/python:3.12
+
+RUN dnf install -y libgomp \
+    && dnf clean all
+
+COPY requirements-lambda.txt ${LAMBDA_TASK_ROOT}/
+RUN python -m pip install --no-cache-dir \
+    -r ${LAMBDA_TASK_ROOT}/requirements-lambda.txt \
+    --target ${LAMBDA_TASK_ROOT}
+
+COPY src/credit_risk ${LAMBDA_TASK_ROOT}/credit_risk
+COPY app/lambda_handler.py ${LAMBDA_TASK_ROOT}/lambda_handler.py
+COPY models/model.joblib models/model_meta.json ${LAMBDA_TASK_ROOT}/models/
+
+ENV CREDIT_RISK_MODEL_DIR=${LAMBDA_TASK_ROOT}/models \
+    OMP_NUM_THREADS=1
+
+CMD ["lambda_handler.handler"]

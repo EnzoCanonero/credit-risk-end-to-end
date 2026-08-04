@@ -4,7 +4,7 @@ from typing import cast
 
 import pytest
 
-from app.main import Loan
+from credit_risk.schema import Loan
 
 
 # Returns a complete request body for the scoring API.

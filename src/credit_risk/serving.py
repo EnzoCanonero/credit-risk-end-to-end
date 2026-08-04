@@ -1,6 +1,7 @@
 # Loads the trained model and scores loan applications.
 
 import json
+import os
 from functools import lru_cache
 from pathlib import Path
 from typing import cast
@@ -9,9 +10,11 @@ import joblib
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
-from credit_risk.data import REPO_ROOT
+from credit_risk.evaluate import breakeven_probability
+from credit_risk.schema import Loan
 
-MODELS = REPO_ROOT / "models"
+DEFAULT_MODELS = Path(__file__).resolve().parents[2] / "models"
+MODELS = Path(os.getenv("CREDIT_RISK_MODEL_DIR", str(DEFAULT_MODELS)))
 ARTIFACT = MODELS / "model.joblib"
 METADATA = MODELS / "model_meta.json"
 
@@ -55,3 +58,11 @@ def score(loans: pd.DataFrame) -> pd.Series:
     probs = model.predict_proba(loans[cols])[:, 1]
 
     return pd.Series(probs, index=loans.index)
+
+
+# Scores one loan and returns the approval decision.
+def score_one(loan: Loan) -> dict[str, float | bool]:
+    probability = float(score(pd.DataFrame([loan.model_dump()])).iloc[0])
+    approve = bool(probability < breakeven_probability(loan.int_rate))
+
+    return {"default_probability": probability, "approve": approve}
