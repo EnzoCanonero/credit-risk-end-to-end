@@ -50,20 +50,23 @@ worth](#what-a-decision-is-worth), below):
 
 On a book already screened to Lending Club's accepted loans the approve-or-reject decision is worth
 only a few percent, and a single threshold set on the training book captures it. Per-loan pricing
-does worse because it trusts probabilities that lean low on the newest vintage and approves
-high-rate loans that default at 41%.
+does worse on test, chiefly on high-rate loans that default at 41%; both probability
+underprediction and simplified payoff assumptions contribute to their losses.
 
 ### Calibration
 
-The economics multiply by the predicted probability, so honest probabilities are a prerequisite,
-not a nicety. On validation the union model is already well calibrated, and no post-hoc correction
-is applied.
+The economics multiply by the predicted probability, so probability calibration matters directly.
+The tuned union model already underpredicts on validation, a 13.1% mean prediction against 15.0%
+observed.
+The baseline check below shows the same pattern; its tested isotonic correction provides no
+material Brier improvement, so no post-hoc correction is carried forward.
 
-![Validation reliability, union LightGBM](reports/reliability_lgbm.png)
+![Validation reliability, baseline union LightGBM](reports/reliability_lgbm.png)
 
-On the test set it underpredicts across the range: the newest vintage defaults more than the
-training years, and a model fit on older data does not fully see it. The drift is small, but it is
-exactly what tips per-loan pricing behind the blunter single threshold above.
+On test the overall gap is similar, a 13.4% mean prediction against 15.5% observed, but
+underprediction is larger in the high-risk tail. This contributes to per-loan pricing trailing the
+blunter single threshold, alongside error in the simplified high-rate payoff assumptions; the
+evaluation does not isolate either as the sole cause.
 
 ![Test reliability, tuned union LightGBM](reports/reliability_test.png)
 
