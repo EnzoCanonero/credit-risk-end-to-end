@@ -231,6 +231,13 @@ that packages the API; and a GitHub Actions workflow running ruff and the tests 
 where it is not: selection bias, calibration drift on newer vintages, and the economic assumptions
 behind the pricing.
 
+The same scoring contract also runs as a direct-invocation AWS Lambda container. Its verified
+prediction matches local serving; a measured cold start took 4.23 seconds before a 41.92 ms
+invocation, while immediate warm reuse took 15.38 ms and used 283 MB. The result makes Lambda a
+reasonable fit for sporadic event-driven scoring, but not this model's latency-sensitive HTTP
+path without further cold-start work. The commands and recorded run are in
+[`infra/aws/lambda`](infra/aws/lambda/README.md).
+
 ## Later, if time
 
 These studies do not change the 36-month model that was tested, so they can follow it.
