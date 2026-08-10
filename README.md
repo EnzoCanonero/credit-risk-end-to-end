@@ -11,35 +11,55 @@ is worth.
 them so that applicant data is evaluated on its own, while the union model adds them back. The
 models train on the oldest vintages and are evaluated on newer ones.
 
+## Contents
+
+- [What's here](#whats-here)
+- [Results](#results)
+- [Data layer](#data-layer)
+- [Studies](#studies)
+- [Layout](#layout)
+- [Running](#running)
+- [Serving and cloud deployment](#serving-and-cloud-deployment)
+- [Later, if time](#later-if-time)
+
 ## What's here
 
-The target is lifetime default on 36-month loans, and each loan is labelled only after its full
-term has elapsed. Without this maturity filter, recent vintages would appear safer because some
-defaults would not yet have occurred. SQL applies the filter when building the modelling table.
+The repository covers the path from raw Lending Club files to scored loans. DuckDB and SQL build
+the modelling data and a versioned Parquet export. Five notebooks compare feature sets, check the
+temporal split, estimate loan economics, tune the model and report one held-out test. The fitted
+pipeline is then reused for batch scoring, FastAPI and Lambda.
 
-Leakage is controlled in two stages. SQL removes post-origination columns, including payments,
-recoveries and last FICO, from the modelling table. Python then divides the remaining fields into
-borrower data and Lending Club's verdict, producing three feature sets: the verdict alone, the
-borrower data alone (the underwriter model, which excludes `int_rate` and `grade`), and their union.
-The split remains out of time throughout: the oldest vintages form the 375k-loan training set, the
-middle vintages form the 155k-loan validation set, and the latest 178k loans form the test set.
+The AWS work adds raw and curated storage in S3, a Glue catalog queried through Athena, and direct
+container inference with ECR and Lambda. The Athena aggregates are checked against DuckDB and the
+Lambda response against local scoring. FastAPI is tested and containerised, but it is not hosted.
+CI runs the tests, Ruff and mypy, while the model card records the intended use and known limits.
+
+The target is lifetime default on 36-month loans. A loan is labelled only after its full term has
+elapsed, so recent vintages do not look artificially safe. SQL also removes post-origination fields
+such as payments, recoveries and last FICO. Python compares Lending Club's verdict, borrower data
+without `int_rate` or `grade`, and the union of both. The split stays chronological: 375k older loans
+for training, 155k for validation and the latest 178k for testing.
 
 ## Results
 
-The selected model is a union LightGBM that combines borrower data with Lending Club's verdict.
-This feature set outperformed either one alone on validation ([Whose information prices the
-loan](#whose-information-prices-the-loan), below). It is then tuned with Optuna, refit on training
-and validation data, and scored once on the held-out test. The validation and test metrics are:
+The union LightGBM combines borrower data with Lending Club's verdict and performed best on
+validation. It was tuned with Optuna, refit on training and validation, then evaluated once on the
+held-out test. The feature comparison is covered under [Whose information prices the
+loan](#whose-information-prices-the-loan).
 
 | union lgbm         | ROC AUC | PR AUC | Brier | log-loss |
 |--------------------|:-------:|:------:|:-----:|:--------:|
 | validation (tuned) | 0.699   | 0.279  | 0.120 | 0.392    |
 | test               | 0.710   | 0.304  | 0.121 | 0.395    |
 
-Three decision rules are evaluated on realised outcomes: approve every loan, apply one break-even
-threshold to the whole book, or approve when each loan's expected profit is positive. Their results
-are close, with the single threshold producing the highest total profit. The rules and their
-economics are described under [What a decision is worth](#what-a-decision-is-worth):
+These metrics belong to the model fitted on training and validation. After the test was complete,
+`scripts/build_model.py` refitted the chosen configuration on all 708,368 mature loans for serving.
+The test results were not recalculated from that final artifact.
+
+Three lending rules are compared on realised test outcomes: approve every loan, use one break-even
+threshold for the whole book, or approve loans with positive expected profit. The single threshold
+produced the highest total profit. The assumptions are explained under
+[What a decision is worth](#what-a-decision-is-worth).
 
 | policy            | total profit | approved | bad rate |
 |-------------------|:------------:|:--------:|:--------:|
@@ -50,8 +70,13 @@ economics are described under [What a decision is worth](#what-a-decision-is-wor
 Within a book already screened to Lending Club's accepted loans, the approve-or-reject decision
 changes total profit by only a few percent. A single threshold derived from the training book
 captures most of this difference. The per-loan rule performs worse on test, mainly because of
-high-rate loans that default at 42%; both probability underprediction and the payoff assumptions
+high-rate loans that default at 42%. Both probability underprediction and the payoff assumptions
 contribute to their losses.
+
+The cloud implementation keeps the same data and scoring contracts. Curated `v1` contains
+2,260,668 accepted loans, all four Athena queries match the corresponding DuckDB aggregates, and
+the sample Lambda response matches the local service. Deployment measurements and costs are
+summarised under [Serving and cloud deployment](#serving-and-cloud-deployment).
 
 ### Calibration
 
@@ -72,18 +97,6 @@ does not isolate their effects.
 
 ## Data layer
 
-The AWS implementation is documented as three small, costed case studies:
-
-| Component | What it demonstrates | Headline list-price estimate | Documentation |
-|---|---|---:|---|
-| S3 | raw/curated boundaries, Hive layout, lifecycle and recovery controls | $0.011/month after day 90 | [S3 data foundation](infra/aws/s3/README.md) |
-| Athena | external catalog, partition and column pruning, DuckDB parity | $0.00026 per four-query run | [Athena analytical layer](infra/aws/athena/README.md) |
-| Lambda | container inference, minimal IAM and measured cold/warm behaviour | $0.031/month at 1,000 warm calls | [Lambda scoring](infra/aws/lambda/README.md) |
-
-Each document opens with a dated eu-west-2 list-price forecast and states what
-is excluded, so the estimates are visible without being presented as an AWS
-bill.
-
 The analysis uses two layers: `sql/` prepares and checks the data, while the notebooks handle the
 modelling. The SQL files are numbered in groups:
 
@@ -97,28 +110,6 @@ modelling. The SQL files are numbered in groups:
   distributions, outliers, and each field's relationship with default.
 - **`30`** estimates the loan economics: interest earned on repaid loans, principal lost on
   defaults, and the two constants used by the decision layer.
-
-### AWS analytical parity
-
-The cloud layer preserves the local data contract rather than creating a second analytical truth.
-Curated `v1` stores 2,260,668 unique loans in S3 as 12 Snappy Parquet files partitioned by source
-snapshot and issue year. The Glue Data Catalog registers their schema and partition locations;
-Athena queries the files in place through an external table.
-
-[`scripts/run_athena_analysis.py`](scripts/run_athena_analysis.py) executes the same four SQL files
-in DuckDB and Athena, disables Athena result reuse, and writes a small metrics file only if every
-ordered value matches. In the recorded Athena engine v3 run, every query matched. The rate-band
-economics scanned 20.01 MiB, 5.38% of the 390,019,161-byte curated dataset, and the training-book
-constants scanned 6.60 MiB, 1.78%. These are measured scan shares from explicit Parquet projection
-and Hive partition predicates, not an inferred savings claim.
-
-> Reproduced the credit-risk economics on Athena with exact DuckDB parity while scanning 5.38% of
-> curated bytes for the portfolio rate-band analysis and 1.78% for training constants.
-
-The analysis also makes the censoring decision visible: the unresolved share of recent 60-month
-loans rises from 17.15% for the 2014 vintage to 90.01% for 2018, so their resolved-only bad rate is
-not a lifetime-default target. See the [full parity and scan report](reports/athena/2018Q4_v1.md),
-the [shared Athena SQL](sql/athena/), and the [catalog bootstrap notes](infra/aws/athena/README.md).
 
 ## Studies
 
@@ -221,38 +212,72 @@ uvicorn app.main:app             # serve it, then open http://localhost:8000/doc
 ```
 
 The curated export keeps every accepted-loan source column, adds typed timing and term fields, and
-removes only the non-loan summary rows appended to the CSV. It writes immutable schema version `v1`
-as Snappy Parquet, partitioned by `source_snapshot` and `issue_year`. The exporter refuses to
-overwrite an existing version directory; rebuild into a new schema version or remove a reviewed
-local generated export explicitly.
+removes only the non-loan summary rows appended to the CSV. It writes schema version `v1`, treated
+as immutable by convention, as Snappy Parquet partitioned by `source_snapshot` and `issue_year`.
+The exporter refuses to overwrite an existing version directory; rebuild into a new schema version
+or remove a reviewed local generated export explicitly.
 
-Or serve it in a container (build the model first, the artifact is not in the image by default):
+Or serve it in a container (build the model first; the generated artifact is not version-controlled):
 
 ```
 docker build -t credit-risk .
 docker run -p 8000:8000 credit-risk
 ```
 
-## Production layer
+## Serving and cloud deployment
 
-`scripts/build_model.py` refits the tuned configuration on all available data and serialises the
-Pipeline to `models/`, so scoring does not retrain and preprocessing remains part of the artifact.
-`src/credit_risk/serving.py` loads it once and exposes a `score` function used by both
-`scripts/score_batch.py` for CSV scoring and `app/main.py` for the FastAPI `/score` route, so batch
-and online scoring follow the same path.
+`scripts/build_model.py` saves the fitted preprocessing and model in one scikit-learn `Pipeline`.
+`src/credit_risk/serving.py` loads that artifact once and provides the scoring code used by batch
+jobs, FastAPI and Lambda. FastAPI and Lambda also use the same validated `Loan` schema and
+`score_one` function. Tests include a fixed prediction to catch differences between training and
+serving.
 
-The tests cover the economics, serving contract, and model behaviour, while a golden test checks
-for train/serve skew (`tests/`). A `Dockerfile` packages the API, and GitHub Actions runs ruff and
-the tests on every push (`.github/workflows`). The model card in `docs/model_card.md` records the
-model's scope, selection bias, calibration drift on newer vintages, and the economic assumptions
-behind the pricing.
+FastAPI provides an HTTP API and needs a container host. Lambda runs the same scoring logic as
+managed, event-driven compute. Neither serving path queries S3 or Athena at request time. Those
+services make up the separate data and analytics layer.
 
-The same scoring contract also runs as a direct-invocation AWS Lambda container. Its verified
-prediction matches local serving; a measured cold start took 4.23 seconds before a 41.92 ms
-invocation, while immediate warm reuse took 15.38 ms and used 283 MB. The result makes Lambda a
-reasonable fit for sporadic event-driven scoring, but not this model's latency-sensitive HTTP
-path without further cold-start work. The commands and recorded run are in
-[`infra/aws/lambda`](infra/aws/lambda/README.md).
+### FastAPI
+
+`app/main.py` exposes `/health` and `/score`, loads the model at startup and validates requests
+before scoring them. The standard `Dockerfile` packages the app as an HTTP container suited to
+sustained traffic and predictable latency.
+
+To host it on AWS, the FastAPI image could be pushed to its own ECR repository and deployed with
+ECS Express Mode. The service would need a task execution role, an infrastructure role, port `8000`,
+an HTTP health check at `/health` and chosen scaling limits. AWS would then create the Fargate
+service, load balancer, HTTPS endpoint, networking and autoscaling configuration.
+
+That deployment is not included here. Without a traffic profile, SLA or authentication
+requirements, there is no useful target against which to size or evaluate the service. A public
+endpoint would still add recurring compute, load-balancer and logging costs, along with security
+and operations work. The repository provides a tested container rather than a hosted FastAPI
+service, so no hosting cost is quoted.
+
+### AWS
+
+| Component | Result | Estimated list-price cost | Details |
+|---|---|---:|---|
+| S3 | 2.26M loans in raw and partitioned curated layers | $0.011/month after day 90 | [data foundation](infra/aws/s3/README.md) |
+| Athena | four economic queries matching the DuckDB aggregates | $0.00025 per run | [analytical layer](infra/aws/athena/README.md) |
+| Lambda + ECR | container inference using the shared scoring contract | $0.029/month at 1,000 warm calls | [Lambda scoring](infra/aws/lambda/README.md) |
+
+Athena scanned 5.38% of the curated data for the rate-band analysis and 1.78% for the training
+constants. These are shares of the stored data, not savings against a `SELECT *` control query.
+Lambda returned the same prediction as the local service. Its measured cold initialization took
+4.23 seconds, while an immediate warm invocation took 15.38 ms. The query results and scan metrics
+are recorded in the [Athena report](reports/athena/2018Q4_v1.md).
+
+### When to use each
+
+At the current data volume, storage after the day-90 transition, one Athena analysis and 1,000 warm
+Lambda calls total about $0.04 per month at AWS list prices. This excludes free-tier credits, tax,
+request charges, logs and a public API. There is no FastAPI estimate because hosting was not
+implemented and its cost would depend on the chosen task size and minimum capacity.
+
+A hosted FastAPI service fits steady HTTP traffic and tighter latency requirements. Lambda fits
+occasional or event-driven scoring when a multi-second cold start is acceptable. Exposing the
+current Lambda through HTTP would also require an HTTP adapter and either API Gateway or a Function
+URL. The choice between them does not affect the S3 and Athena analytics layer.
 
 ## Later, if time
 
