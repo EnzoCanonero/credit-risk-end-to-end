@@ -69,6 +69,18 @@ exactly what tips per-loan pricing behind the blunter single threshold above.
 
 ## Data layer
 
+The AWS implementation is documented as three small, costed case studies:
+
+| Component | What it demonstrates | Headline list-price estimate | Documentation |
+|---|---|---:|---|
+| S3 | raw/curated boundaries, Hive layout, lifecycle and recovery controls | $0.011/month after day 90 | [S3 data foundation](infra/aws/s3/README.md) |
+| Athena | external catalog, partition and column pruning, DuckDB parity | $0.00026 per four-query run | [Athena analytical layer](infra/aws/athena/README.md) |
+| Lambda | container inference, minimal IAM and measured cold/warm behaviour | $0.031/month at 1,000 warm calls | [Lambda scoring](infra/aws/lambda/README.md) |
+
+Each document opens with a dated eu-west-2 list-price forecast and states what
+is excluded, so the estimates are visible without being presented as an AWS
+bill.
+
 The work sits in two layers. This one, in `sql/`, prepares and interrogates the data; the notebooks
 below do the modelling. The files are numbered in groups:
 
