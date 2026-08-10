@@ -1,7 +1,9 @@
 # Trains and saves the final credit risk model.
 
 import json
+import platform
 from datetime import date
+from importlib.metadata import version
 
 import joblib
 import pandas as pd
@@ -48,6 +50,18 @@ def main() -> None:
         "n_fit_rows": len(fit_df),
         "fit_vintages": [vintages.min().strftime("%Y-%m"), vintages.max().strftime("%Y-%m")],
         "built": date.today().isoformat(),
+        "python": platform.python_version(),
+        "dependencies": {
+            package: version(package)
+            for package in (
+                "joblib",
+                "lightgbm",
+                "numpy",
+                "pandas",
+                "scipy",
+                "scikit-learn",
+            )
+        },
         "fit_on": "train+val+test, all available data",
         "performance": "unbiased estimate in notebooks/25_final_test (same config fit on train+val)",
     }

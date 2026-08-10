@@ -193,7 +193,7 @@ infra/      reviewed AWS service configuration applied manually with the AWS CLI
 ## Running
 
 ```
-pip install -e .                 # into a Python 3.11 environment
+pip install -e .                 # into a Python 3.12 environment
 python scripts/build_db.py       # build data/credit_risk.duckdb from the raw CSVs
 python scripts/export_curated.py # write partitioned Parquet under data/curated/
 python scripts/run_athena_analysis.py # verify DuckDB/Athena parity and record scan metrics

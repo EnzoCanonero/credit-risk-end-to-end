@@ -1,8 +1,8 @@
 # Builds the container used to serve the scoring API.
-FROM python:3.11-slim
+FROM python:3.12-slim
 
 LABEL org.opencontainers.image.description="FastAPI service scoring 36-month Lending Club loans for default risk" \
-LABEL org.opencontainers.image.source="https://github.com/EnzoCanonero/credit-risk-end-to-end"
+      org.opencontainers.image.source="https://github.com/EnzoCanonero/credit-risk-end-to-end"
 
 WORKDIR /app
 

@@ -2,13 +2,16 @@
 [project]
 name = "credit-risk"
 version = "0.1.0"
-requires-python = ">=3.11"
+requires-python = ">=3.12"
 dependencies = [
     "duckdb",
-    "pandas",
-    "numpy",
-    "scikit-learn",
-    "lightgbm",
+    "joblib==1.5.3",
+    "lightgbm==4.7.0",
+    "numpy==2.4.6",
+    "pandas==3.0.3",
+    "pydantic==2.13.4",
+    "scikit-learn==1.9.0",
+    "scipy==1.17.1",
     "matplotlib",
     "optuna",
     "fastapi",
@@ -33,13 +36,13 @@ build-backend = "setuptools.build_meta"
 where = ["src"]
 
 [tool.ruff]
-target-version = "py311"
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F"]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.12"
 files = ["src/credit_risk", "app", "scripts", "tests"]
 disallow_untyped_defs = true
 disable_error_code = ["import-untyped"]
