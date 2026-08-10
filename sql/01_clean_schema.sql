@@ -56,7 +56,7 @@ WITH loans AS(
       WHEN loan_status = 'Fully Paid' THEN 0
     END AS target_bad
 
-  FROM raw.loans_accepted
+  FROM curated.loans_accepted
   WHERE loan_status IN ('Charged Off', 'Fully Paid')
     AND trim(term) = '36 months'
     AND issue_d IS NOT NULL

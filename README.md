@@ -72,6 +72,18 @@ does not isolate their effects.
 
 ## Data layer
 
+The AWS implementation is documented as three small, costed case studies:
+
+| Component | What it demonstrates | Headline list-price estimate | Documentation |
+|---|---|---:|---|
+| S3 | raw/curated boundaries, Hive layout, lifecycle and recovery controls | $0.011/month after day 90 | [S3 data foundation](infra/aws/s3/README.md) |
+| Athena | external catalog, partition and column pruning, DuckDB parity | $0.00026 per four-query run | [Athena analytical layer](infra/aws/athena/README.md) |
+| Lambda | container inference, minimal IAM and measured cold/warm behaviour | $0.031/month at 1,000 warm calls | [Lambda scoring](infra/aws/lambda/README.md) |
+
+Each document opens with a dated eu-west-2 list-price forecast and states what
+is excluded, so the estimates are visible without being presented as an AWS
+bill.
+
 The analysis uses two layers: `sql/` prepares and checks the data, while the notebooks handle the
 modelling. The SQL files are numbered in groups:
 
@@ -85,6 +97,28 @@ modelling. The SQL files are numbered in groups:
   distributions, outliers, and each field's relationship with default.
 - **`30`** estimates the loan economics: interest earned on repaid loans, principal lost on
   defaults, and the two constants used by the decision layer.
+
+### AWS analytical parity
+
+The cloud layer preserves the local data contract rather than creating a second analytical truth.
+Curated `v1` stores 2,260,668 unique loans in S3 as 12 Snappy Parquet files partitioned by source
+snapshot and issue year. The Glue Data Catalog registers their schema and partition locations;
+Athena queries the files in place through an external table.
+
+[`scripts/run_athena_analysis.py`](scripts/run_athena_analysis.py) executes the same four SQL files
+in DuckDB and Athena, disables Athena result reuse, and writes a small metrics file only if every
+ordered value matches. In the recorded Athena engine v3 run, every query matched. The rate-band
+economics scanned 20.01 MiB, 5.38% of the 390,019,161-byte curated dataset, and the training-book
+constants scanned 6.60 MiB, 1.78%. These are measured scan shares from explicit Parquet projection
+and Hive partition predicates, not an inferred savings claim.
+
+> Reproduced the credit-risk economics on Athena with exact DuckDB parity while scanning 5.38% of
+> curated bytes for the portfolio rate-band analysis and 1.78% for training constants.
+
+The analysis also makes the censoring decision visible: the unresolved share of recent 60-month
+loans rises from 17.15% for the 2014 vintage to 90.01% for 2018, so their resolved-only bad rate is
+not a lifetime-default target. See the [full parity and scan report](reports/athena/2018Q4_v1.md),
+the [shared Athena SQL](sql/athena/), and the [catalog bootstrap notes](infra/aws/athena/README.md).
 
 ## Studies
 
@@ -162,26 +196,35 @@ test.
 ## Layout
 
 ```
-sql/        ingestion, the modelling table, and the EDA behind every feature choice
+sql/        ingestion, the curated contract, the modelling table, and feature-choice EDA
 src/        data loading, split, model pipelines, evaluation, drift, and serving
-scripts/    build_db, train_baseline, tune_lgbm, build_model (the artifact), score_batch
+scripts/    build_db, export_curated, training, tuning, artifact build, and batch scoring
 app/        the FastAPI scoring service
 models/     the serialised model artifact and its metadata
-tests/      pytest suite for the economics, serving and API
+tests/      pytest suite for curation, economics, serving and API
 notebooks/  21 underwriter vs Lending Club, 22 validation, 23 decision economics, 24 tuning, 25 final test
-reports/    saved figures
+reports/    saved figures and the verified Athena parity report
 docs/       the model card
+infra/      reviewed AWS service configuration applied manually with the AWS CLI
 ```
 
 ## Running
 
 ```
-pip install -e .                 # into a Python 3.11 environment
+pip install -e .                 # into a Python 3.12 environment
 python scripts/build_db.py       # build data/credit_risk.duckdb from the raw CSVs
+python scripts/export_curated.py # write partitioned Parquet under data/curated/
+python scripts/run_athena_analysis.py # verify DuckDB/Athena parity and record scan metrics
 python scripts/train_baseline.py # the model comparison
 python scripts/build_model.py    # fit the final model into models/
 uvicorn app.main:app             # serve it, then open http://localhost:8000/docs
 ```
+
+The curated export keeps every accepted-loan source column, adds typed timing and term fields, and
+removes only the non-loan summary rows appended to the CSV. It writes immutable schema version `v1`
+as Snappy Parquet, partitioned by `source_snapshot` and `issue_year`. The exporter refuses to
+overwrite an existing version directory; rebuild into a new schema version or remove a reviewed
+local generated export explicitly.
 
 Or serve it in a container (build the model first, the artifact is not in the image by default):
 
@@ -203,6 +246,13 @@ for train/serve skew (`tests/`). A `Dockerfile` packages the API, and GitHub Act
 the tests on every push (`.github/workflows`). The model card in `docs/model_card.md` records the
 model's scope, selection bias, calibration drift on newer vintages, and the economic assumptions
 behind the pricing.
+
+The same scoring contract also runs as a direct-invocation AWS Lambda container. Its verified
+prediction matches local serving; a measured cold start took 4.23 seconds before a 41.92 ms
+invocation, while immediate warm reuse took 15.38 ms and used 283 MB. The result makes Lambda a
+reasonable fit for sporadic event-driven scoring, but not this model's latency-sensitive HTTP
+path without further cold-start work. The commands and recorded run are in
+[`infra/aws/lambda`](infra/aws/lambda/README.md).
 
 ## Later, if time
 

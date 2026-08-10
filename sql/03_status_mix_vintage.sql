@@ -4,7 +4,7 @@ WITH base AS (
   SELECT
     date_trunc('quarter', try_strptime(issue_d, '%b-%Y')::DATE)::DATE AS vintage_quarter,
     loan_status
-  FROM raw.loans_accepted
+  FROM curated.loans_accepted
   WHERE issue_d IS NOT NULL
 )
 

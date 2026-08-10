@@ -6,6 +6,9 @@ reports/
 tests/
 docs/
 .github/
+.aws/
+.env
+.env.*
 __pycache__/
 *.egg-info/
 .ipynb_checkpoints/
