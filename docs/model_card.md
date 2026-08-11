@@ -25,13 +25,13 @@ and, above all, where it stops being trustworthy.
 
 ## Data
 
-- **Population.** Lending Club accepted 36-month loans, labelled only once matured, so the outcome is
-  observed rather than censored. The rejected-applicant file is not used (see Limitations).
+- **Population.** Lending Club accepted 36-month loans with terminal `Charged Off` or `Fully Paid`
+  status. The rejected-applicant file is not used (see Limitations).
 - **Split.** Out-of-time: trained on the oldest vintages, tuned on the middle, tested on the newest.
   Sizes 375k / 155k / 178k.
 - **Shipped artifact.** Refit on all available data (708,368 loans, vintages 2007-06 to 2016-03)
-  once the test had given its unbiased estimate, so the deployed model is not the exact object the
-  numbers below describe; those describe the same configuration fit on train and validation only.
+  after the final evaluation, so the deployed model is not the exact object the numbers below
+  describe; those describe the same configuration fit on train and validation only.
 - **Leakage discipline.** Post-origination columns (payments, recoveries, last FICO) are excluded in
   SQL when the modelling table is built, so no feature encodes the outcome.
 
@@ -45,7 +45,7 @@ application data does not fully carry.
 
 ## Performance
 
-Held-out test set, the unbiased estimate:
+Historical held-out test set:
 
 | metric   | test  |
 |----------|:-----:|
@@ -62,26 +62,35 @@ probabilities that lean low on the newest vintage (see Calibration).
 
 ## Calibration
 
-The economics multiply by the predicted probability, so calibration is a precondition, not a
-nicety. On validation the model is well calibrated and needs no post-hoc correction
-(`reports/reliability_lgbm.png`). On the test set it **underpredicts across the range**: the newest
-vintage defaulted more than the training years (a 0.155 test bad rate), and a model fit on older
-data does not fully anticipate it (`reports/reliability_test.png`). The probabilities are still
-usable, but they lean low, and that gap is what tips per-loan pricing behind the blunter threshold.
+The model is moderately undercalibrated: mean predicted default is 13.1% versus 15.0% observed on
+validation, and 13.4% versus 15.5% on test. Ranking remains useful, but probabilities that are too
+low can bias expected-profit estimates and approval decisions. The exploratory isotonic correction
+is not preferred here: it learns a flexible mapping inside older training vintages, while the
+observed pattern is consistent with a shift in probability level, and it left validation Brier
+unchanged at the reported precision (`reports/reliability_lgbm.png`,
+`reports/reliability_test.png`).
+
+A proper correction would reserve four chronological blocks: **train → tuning → calibration →
+final test**. After tuning, an intercept fitted only on the calibration block would update the
+level, `logit(p_cal) = a + logit(p_raw)`, without changing the ranking. Tuning and the
+probability-based economic evaluation would then need to be rerun before reporting calibrated
+results. The current artifact and metrics remain uncalibrated.
 
 ## Limitations
 
 - **Selection bias.** The model only ever sees loans Lending Club accepted. It is not valid on the
   applicants it rejected; its estimates hold inside the accepted region, not outside it. Quantifying
   this boundary with the rejected file is planned but not yet done.
-- **Calibration drift.** Default rates rose in the newest vintage and the model underpredicts there.
-  The probabilities need periodic recalibration; left unattended, the currency figures drift with
-  them.
+- **Calibration.** The model underpredicts average risk by about two percentage points on both
+  temporal evaluation blocks. Without a separate calibration window, the PD and currency outputs
+  should be treated as approximate rather than prospectively calibrated estimates.
 - **Economic assumptions.** The pricing assumes no discounting (a euro at month 36 counts as a euro
   today), past recovery behaviour, and a break-even set on the training book. The figures hold only
   while pricing and recoveries behave as they did.
-- **Scope.** 36-month loans only. Applying the same fixed-window target to 60-month loans would
-  reintroduce maturity bias; that case needs a survival model, not this one.
+- **Scope.** 36-month loans only. A 60-month extension would need either a terminal-outcome cohort
+  with an additional maturity buffer, or genuine event-history data for survival modelling. Either
+  design would require its own chronological calibration block rather than reuse of the 36-month
+  adjustment.
 
 ## When not to use it
 
@@ -95,7 +104,7 @@ usable, but they lean low, and that gap is what tips per-loan pricing behind the
 - **Monitor** the realised default rate against the predicted, by vintage, and the input feature
   distributions for drift (the PSI and adversarial checks in `notebooks/22_validation` are the
   template).
-- **Recalibrate** when the reliability curve pulls away from the diagonal, before the miscalibration
-  reaches the decisions.
+- **Recalibrate** only after model selection, using a later calibration block and preserving a still
+  later test block; refit the intercept when monitored calibration-in-the-large moves materially.
 - **Rebuild** the artifact with `scripts/build_model.py` when new matured vintages are available, and
   re-run the final test before trusting new numbers.
