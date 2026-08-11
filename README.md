@@ -78,23 +78,6 @@ The cloud implementation keeps the same data and scoring contracts. Curated `v1`
 the sample Lambda response matches the local service. Deployment measurements and costs are
 summarised under [Serving and cloud deployment](#serving-and-cloud-deployment).
 
-### Calibration
-
-The expected-profit calculation uses predicted default probabilities directly, so calibration
-affects the decision. On validation, the tuned union model predicts an average default rate of
-13.1%, compared with 15.0% observed. The baseline check below shows the same pattern, and isotonic
-calibration leaves its validation Brier score unchanged at three decimal places, so the correction
-is not carried forward.
-
-![Validation reliability, baseline union LightGBM](reports/reliability_lgbm.png)
-
-On test, the model predicts 13.4% on average, compared with 15.5% observed. The overall gap remains
-similar, although it increases in the high-risk tail. Both this underprediction and the high-rate
-payoff assumptions contribute to per-loan pricing trailing the single threshold, and the evaluation
-does not isolate their effects.
-
-![Validation and test reliability, tuned union LightGBM](reports/reliability_test.png)
-
 ## Data layer
 
 The analysis uses two layers: `sql/` prepares and checks the data, while the notebooks handle the
@@ -183,6 +166,26 @@ The selected configuration uses a 0.01 learning rate and 1734 trees, with little
 reported metrics. Notebook 23 evaluates the currency results with the baseline union model, so it
 does not measure the effect of tuning on profit. The selected configuration is carried to the final
 test.
+
+### Calibration
+
+The tuned model is moderately undercalibrated: it predicts 13.1% default on validation versus
+15.0% observed, and 13.4% versus 15.5% on test. This does not invalidate its ranking, but it makes
+the probabilities too low on average and can bias expected-profit estimates and approval decisions.
+The isotonic check is not the best remedy here: it learns a flexible mapping inside the older
+training sample, whereas the observed error is mainly a later shift in the probability level. Its
+validation Brier score was consequently unchanged at the reported precision.
+
+![Validation reliability, baseline union LightGBM](reports/reliability_lgbm.png)
+
+A proper correction would use four chronological blocks: **train → tuning → calibration → final
+test**. After model selection, an intercept is fitted only on the calibration block,
+`logit(p_cal) = a + logit(p_raw)`, and then frozen before the final test. This preserves ranking
+while updating the probability level. It would require rerunning tuning without the calibration
+block and then recomputing the probability-based economic policies; the current results therefore
+remain uncalibrated rather than applying a post-hoc correction.
+
+![Validation and test reliability, tuned union LightGBM](reports/reliability_test.png)
 
 ## Layout
 
@@ -288,6 +291,8 @@ These studies do not affect the tested 36-month model and can be addressed later
   the maturity bias, since those loans take 60 months to mature and few recent vintages would
   qualify. A survival or discrete-time hazard model handles this by using each loan for the
   period it was observed and treating the term as a covariate, covering both terms in one model.
+  Its cumulative default probabilities would then be calibrated at the relevant horizons on a
+  separate chronological calibration block, rather than reusing the 36-month adjustment.
 - **Selection bias.** The model only ever sees accepted loans, while the rejected file is ingested
   but unused. A later study could place it in a comparable table and examine how accepted and
   rejected applicants differ on shared fields such as amount, DTI, risk score, and employment.
