@@ -9,8 +9,6 @@ WITH records AS (
     loans.*,
     TRY_CAST(NULLIF(TRIM(loans.id), '') AS BIGINT) AS loan_id
   FROM raw.loans_accepted AS loans
-  -- Lending Club appends summary footer rows whose id contains prose. They are
-  -- source-file metadata, not loan records, and cannot be partitioned by year.
   WHERE TRY_CAST(NULLIF(TRIM(loans.id), '') AS BIGINT) IS NOT NULL
 ),
 

@@ -13,6 +13,7 @@ SQL_DIR = REPO_ROOT / "sql"
 BUILD_FILES = [
     "ingest.sql",
     "00_curated_accepted.sql",
+    "00_curated_rejected.sql",
     "01_clean_schema.sql",
     "06_multiterm_cohort.sql",
 ]
