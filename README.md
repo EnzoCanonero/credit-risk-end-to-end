@@ -176,6 +176,12 @@ The isotonic check is not the best remedy here: it learns a flexible mapping ins
 training sample, whereas the observed error is mainly a later shift in the probability level. Its
 validation Brier score was consequently unchanged at the reported precision.
 
+In both reliability plots, shading shows 95% pointwise bootstrap intervals for the observed
+default rate in each score bin (1,000 resamples, seed 0), with predictions and the original
+quantile bins fixed. These describe sampling uncertainty within each bin; notebook 25's gap
+intervals assess underprediction directly. They do not give joint coverage for the whole curve
+or account for future drift.
+
 ![Validation reliability, baseline union LightGBM](reports/reliability_lgbm.png)
 
 A proper correction would use four chronological blocks: **train → tuning → calibration → final

@@ -36,6 +36,37 @@ def reliability_data(
     return calibration_curve(y_true, y_proba, n_bins=n_bins, strategy='quantile')
 
 
+# Estimates observed-rate intervals in the original reliability bins.
+def reliability_intervals(
+    y_true: ArrayLike,
+    y_proba: ArrayLike,
+    n_bins: int = 10,
+    n_bootstrap: int = 1000,
+    seed: int = 0,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+    y_true = np.asarray(y_true)
+    y_proba = np.asarray(y_proba)
+
+    bins = np.percentile(y_proba, np.linspace(0, 1, n_bins + 1) * 100)
+    bin_ids = np.searchsorted(bins[1:-1], y_proba)
+    nonempty = np.bincount(bin_ids, minlength=n_bins) > 0
+
+    # The same seed shares sampled rows across aligned prediction arrays.
+    rng = np.random.default_rng(seed)
+    samples = np.full((n_bootstrap, n_bins), np.nan)
+
+    for b in range(n_bootstrap):
+        rows = rng.integers(0, len(y_true), size=len(y_true))
+        counts = np.bincount(bin_ids[rows], minlength=n_bins)
+        defaults = np.bincount(bin_ids[rows], weights=y_true[rows], minlength=n_bins)
+        np.divide(defaults, counts, out=samples[b], where=counts > 0)
+
+    # Empty bootstrap bins remain missing; originally empty bins are omitted.
+    low, high = np.nanpercentile(samples[:, nonempty], [2.5, 97.5], axis=0)
+    return low, high
+
+
 # Breaks the Brier score into its components.
 def murphy_decomposition(
     y_true: ArrayLike,
