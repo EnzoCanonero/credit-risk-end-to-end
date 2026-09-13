@@ -36,6 +36,37 @@ def reliability_data(
     return calibration_curve(y_true, y_proba, n_bins=n_bins, strategy='quantile')
 
 
+# Estimates observed-rate intervals in the original reliability bins.
+def reliability_intervals(
+    y_true: ArrayLike,
+    y_proba: ArrayLike,
+    n_bins: int = 10,
+    n_bootstrap: int = 1000,
+    seed: int = 0,
+) -> tuple[NDArray[np.float64], NDArray[np.float64]]:
+
+    y_true = np.asarray(y_true)
+    y_proba = np.asarray(y_proba)
+
+    bins = np.percentile(y_proba, np.linspace(0, 1, n_bins + 1) * 100)
+    bin_ids = np.searchsorted(bins[1:-1], y_proba)
+    nonempty = np.bincount(bin_ids, minlength=n_bins) > 0
+
+    # The same seed shares sampled rows across aligned prediction arrays.
+    rng = np.random.default_rng(seed)
+    samples = np.full((n_bootstrap, n_bins), np.nan)
+
+    for b in range(n_bootstrap):
+        rows = rng.integers(0, len(y_true), size=len(y_true))
+        counts = np.bincount(bin_ids[rows], minlength=n_bins)
+        defaults = np.bincount(bin_ids[rows], weights=y_true[rows], minlength=n_bins)
+        np.divide(defaults, counts, out=samples[b], where=counts > 0)
+
+    # Empty bootstrap bins remain missing; originally empty bins are omitted.
+    low, high = np.nanpercentile(samples[:, nonempty], [2.5, 97.5], axis=0)
+    return low, high
+
+
 # Breaks the Brier score into its components.
 def murphy_decomposition(
     y_true: ArrayLike,
@@ -119,3 +150,69 @@ def breakeven_probability(int_rate: NumericValue) -> NumericValue:
     margin_fraction = MARGIN_PER_RATE_POINT * int_rate
 
     return margin_fraction / (margin_fraction + LOSS_FRACTION)
+
+
+# Estimates paired differences with 95% bootstrap intervals.
+def bootstrap_comparison(
+    y_true: ArrayLike,
+    predictions: dict[str, ArrayLike],
+    comparisons: dict[str, tuple[str, str]],
+    n_bootstrap: int = 1000,
+    seed: int = 0,
+) -> pd.DataFrame:
+
+    y_true = np.asarray(y_true)
+
+    if y_true.ndim != 1 or not np.array_equal(np.unique(y_true), [0, 1]):
+        raise ValueError("y_true must be one-dimensional and contain both 0 and 1.")
+    if n_bootstrap < 1:
+        raise ValueError("n_bootstrap must be positive.")
+    if not comparisons:
+        raise ValueError("comparisons must contain at least one pair.")
+
+    model_names = dict.fromkeys(name for pair in comparisons.values() for name in pair)
+    probabilities = {name: np.asarray(predictions[name]) for name in model_names}
+
+    if any(proba.shape != y_true.shape for proba in probabilities.values()):
+        raise ValueError("Each prediction array must have the same shape as y_true.")
+
+    metrics = ("roc_auc", "pr_auc", "brier")
+    index = pd.MultiIndex.from_product(
+        [comparisons, metrics], names=["comparison", "metric"]
+    )
+    scores = {
+        name: discrimination_metrics(y_true, proba)
+        for name, proba in probabilities.items()
+    }
+    difference = [
+        scores[first][metric] - scores[second][metric]
+        for first, second in comparisons.values()
+        for metric in metrics
+    ]
+
+    rng = np.random.default_rng(seed)
+    samples = np.empty((n_bootstrap, len(index)))
+
+    for b in range(n_bootstrap):
+
+        # Uses the same sampled loans for every model.
+        rows = rng.integers(0, len(y_true), size=len(y_true))
+        while np.unique(y_true[rows]).size < 2:
+            rows = rng.integers(0, len(y_true), size=len(y_true))
+
+        scores = {
+            name: discrimination_metrics(y_true[rows], proba[rows])
+            for name, proba in probabilities.items()
+        }
+        samples[b] = [
+            scores[first][metric] - scores[second][metric]
+            for first, second in comparisons.values()
+            for metric in metrics
+        ]
+
+    ci_low, ci_high = np.percentile(samples, [2.5, 97.5], axis=0)
+
+    return pd.DataFrame(
+        {"difference": difference, "ci_low": ci_low, "ci_high": ci_high},
+        index=index,
+    )

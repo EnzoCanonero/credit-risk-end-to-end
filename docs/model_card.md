@@ -28,7 +28,9 @@ and, above all, where it stops being trustworthy.
 - **Population.** Lending Club accepted 36-month loans with terminal `Charged Off` or `Fully Paid`
   status. The rejected-applicant file is not used (see Limitations).
 - **Split.** Out-of-time: trained on the oldest vintages, tuned on the middle, tested on the newest.
-  Sizes 375k / 155k / 178k.
+  Sizes 375k / 155k / 178k. The split-design experiment in
+  [notebook 22](../notebooks/22_validation.ipynb) uses an internal split of training and validation
+  loans, excluding the final test period.
 - **Shipped artifact.** Refit on all available data (708,368 loans, vintages 2007-06 to 2016-03)
   after the final evaluation, so the deployed model is not the exact object the numbers below
   describe; those describe the same configuration fit on train and validation only.

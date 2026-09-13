@@ -24,6 +24,7 @@ from credit_risk.model import (
 from credit_risk.evaluate import (
     discrimination_metrics,
     reliability_data,
+    reliability_intervals,
     murphy_decomposition,
 )
 
@@ -97,11 +98,15 @@ def calibration_check(
 
     for label, proba in [("raw", proba_raw), ("isotonic", proba_cal)]:
         prob_true, prob_pred = reliability_data(y, proba)
-        plt.plot(prob_pred, prob_true, marker="o", label=label)
+        ci_low, ci_high = reliability_intervals(y, proba)
+        line, = plt.plot(prob_pred, prob_true, marker="o", markersize=3, label=label)
+        plt.fill_between(prob_pred, ci_low, ci_high, color=line.get_color(), alpha=0.2)
     plt.plot([0, 1], [0, 1], linestyle="--", color="grey", label="perfect")
+    plt.xlim(0, 0.4)
+    plt.ylim(0, 0.4)
     plt.xlabel("mean predicted")
     plt.ylabel("observed default rate")
-    plt.title("LightGBM reliability, union features (validation)")
+    plt.title("LightGBM reliability, union features (validation)\n95% pointwise bootstrap intervals")
     plt.legend()
 
     REPORTS.mkdir(exist_ok=True)
