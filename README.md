@@ -31,9 +31,8 @@ the contribution of probability errors from the assumptions used to value repaym
 
 The selected LightGBM combines borrower information with Lending Club's interest rate and grade.
 [Notebook 25](notebooks/25_final_test.ipynb) evaluates it on **178,453 test loans** (default rate
-**15.46%**) after fitting on training and validation. Test loans were excluded from that fit and
-parameter search. The [period-mixed diagnostic](#time-and-tuning) separately uses test-period
-loans, so the period was not entirely unseen during exploration.
+**15.46%**) after fitting on training and validation. Test loans are excluded from that fit,
+parameter search and the [split-design diagnostics](#time-and-tuning).
 
 ### Model performance
 
@@ -107,11 +106,13 @@ uncertain, while borrower data has a small PR AUC advantage.
 
 ### Time and tuning
 
-[Notebook 22](notebooks/22_validation.ipynb) finds detectable population change, yet only a small
-benefit from period-mixed training on the same validation loans: a ROC AUC gain of
-**0.0021 [0.0012, 0.0029]** for training seed 0. The other two seeds support similarly small gains.
-This deliberately unrealistic diagnostic includes later loans, including test loans, in training
-and illustrates look-ahead. Small changes in ranking do not guarantee stable calibration.
+[Notebook 22](notebooks/22_validation.ipynb) finds detectable population change between training
+and validation. A separate split-design experiment stays within those development loans: models
+train on past-only or period-mixed samples and score the same **106,588 loans from October 2014
+to March 2015**. Period-mixed training adds **0.0033 [0.0020, 0.0046]** to ROC AUC for seed 0;
+the other two seeds support similarly small gains. Later information comes only from development
+vintages, with the final test period excluded. These intervals describe the internal comparison;
+small changes in ranking do not guarantee stable calibration.
 
 [Notebook 24](notebooks/24_tuning.ipynb) reports a tuned-minus-baseline log-loss difference of
 **−0.0011 [−0.0013, −0.0008]**, about a **0.3% reduction** from the baseline validation score.
