@@ -35,8 +35,8 @@ tail latency would become business constraints before compute spend does.
 
 ## Achievement
 
-The same validated loan contract and model artifact now run in a direct-invoke
-AWS Lambda container. The deployed function returned:
+On 2026-08-10, a direct-invoke AWS Lambda container using the shared loan
+contract and model artifact returned:
 
 ```json
 {
@@ -45,10 +45,16 @@ AWS Lambda container. The deployed function returned:
 }
 ```
 
-This matches local serving for [`sample_event.json`](sample_event.json). The
-exact probability can change when the model is rebuilt; the response contract
-is a probability and approval decision. Approval means the estimated default
-probability is below the break-even probability implied by `int_rate`.
+This matched local serving for [`sample_event.json`](sample_event.json) at
+that time. The response contract is a probability and approval decision; the
+exact probability can change when the model is rebuilt.
+
+Current scoring approves below the single portfolio-wide break-even threshold
+in model metadata. It uses the amount-weighted interest rate on training and
+validation, as in [notebook 25](../../../notebooks/25_final_test.ipynb), and is
+shared with FastAPI and batch scoring. `int_rate` remains a model feature.
+The invocation and timings here document the recorded image; deploying this
+revision requires rebuilding the image and updating the Lambda function.
 
 ## Request path
 
@@ -90,13 +96,17 @@ artifact into `/var/task`. It sets one OpenMP thread and declares
 image's entry point.
 
 The image is built as `linux/amd64` because the deployed function is x86_64.
-The model artifact and its metadata are generated and gitignored. After
-building the local `data/credit_risk.duckdb`, generate both before Docker tries
-to copy them:
+The model binary is generated locally and gitignored; its generated metadata
+is version-controlled. After building the local `data/credit_risk.duckdb`,
+generate both before Docker tries to copy them:
 
 ```bash
 python scripts/build_model.py
 ```
+
+For an existing model, `python scripts/build_model.py --policy-only` updates
+the approval metadata without refitting. Include the updated code and metadata
+when rebuilding either the FastAPI or Lambda image.
 
 The dedicated ECR repository uses AES-256 encryption, immutable tags and
 scan-on-push. Create it once:

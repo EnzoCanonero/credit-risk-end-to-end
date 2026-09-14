@@ -173,14 +173,16 @@ on all mature loans, saving preprocessing, model and metadata. The test metrics 
 earlier fit on training and validation. [Shared scoring code](src/credit_risk/serving.py) supports batch
 inference and both API adapters, with tests for consistent predictions.
 
-The implemented approval rule is **per-loan break-even**, even though the historical comparison
-favours the single threshold. This is a demonstration of delivering scores and a decision rule;
-it does not establish a validated lending policy.
+Approval uses a **single portfolio-wide break-even threshold**, calculated from the amount-weighted
+interest rate on training and validation as in [notebook 25](notebooks/25_final_test.ipynb) and saved
+in the model metadata. FastAPI, Lambda and batch scoring approve below this threshold; `int_rate`
+remains a model feature. This demonstrates a decision rule, without establishing a validated
+lending policy.
 
 | Component | What is demonstrated |
 |---|---|
 | [FastAPI](app/main.py) | Validated `/score` requests, `/health` and startup model loading; tested app packaged in Docker, not hosted |
-| [Lambda and ECR](infra/aws/lambda/README.md) | A documented direct AWS invocation matching local scoring; no public HTTP endpoint |
+| [Lambda and ECR](infra/aws/lambda/README.md) | A direct AWS invocation recorded on 2026-08-10, matching local scoring at that time; no public HTTP endpoint |
 | [S3](infra/aws/s3/README.md), Glue and [Athena](infra/aws/athena/README.md) | A separate data and analytical layer, with four query results checked against DuckDB |
 
 FastAPI defines the HTTP application; Lambda runs a separate handler around the same inference
@@ -201,7 +203,7 @@ monitoring beyond this personal project's demonstration.
 | [`app/`](app/), [`Dockerfile`](Dockerfile), [`Dockerfile.lambda`](Dockerfile.lambda) | HTTP and Lambda adapters and their container builds |
 | [`infra/aws/`](infra/aws/) | Cloud configuration and deployment records |
 | [`tests/`](tests/), [CI](.github/workflows/ci.yml), [`docs/`](docs/) | Automated checks and the model's intended use and limitations |
-| `data/`, `models/` | Raw/generated datasets and fitted artifacts, produced locally and not version-controlled |
+| `data/`, `models/` | Local datasets and fitted model binaries; generated model metadata is version-controlled |
 
 ## Run locally
 
@@ -221,6 +223,10 @@ To build and serve the demonstration artifact using the saved configuration:
 python scripts/build_model.py
 uvicorn app.main:app
 ```
+
+For an existing model, `python scripts/build_model.py --policy-only` updates the approval metadata
+without refitting. Restart serving processes to load updated metadata. Rebuild container images
+after updating code or metadata; Lambda also requires publishing the image and updating the function.
 
 Open [the local API documentation](http://localhost:8000/docs), or use the
 [batch scorer](scripts/score_batch.py). The [standard Dockerfile](Dockerfile) provides the
