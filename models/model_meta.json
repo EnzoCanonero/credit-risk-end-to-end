@@ -90,5 +90,12 @@
     "scikit-learn": "1.9.0"
   },
   "fit_on": "train+val+test, all available data",
-  "performance": "unbiased estimate in notebooks/25_final_test (same config fit on train+val)"
+  "performance": "unbiased estimate in notebooks/25_final_test (same config fit on train+val)",
+  "approval_policy": {
+    "name": "single_break_even",
+    "threshold": 0.3101347618392486,
+    "reference": "train+val",
+    "amount_weighted_int_rate": 11.975832057557161,
+    "n_reference_rows": 529915
+  }
 }

@@ -1,5 +1,6 @@
-# Trains and saves the final credit risk model.
+# Builds the credit risk model and its approval policy.
 
+import argparse
 import json
 import platform
 from datetime import date
@@ -10,6 +11,7 @@ import pandas as pd
 
 from credit_risk.data import load_loans, REPO_ROOT
 from credit_risk.split import out_of_time_split
+from credit_risk.evaluate import breakeven_probability
 from credit_risk.model import (
     build_lgbm,
     UNDERWRITER_NUMERIC, UNDERWRITER_CATEGORICAL,
@@ -27,10 +29,35 @@ CATEGORICAL = UNDERWRITER_CATEGORICAL + LC_VERDICT_CATEGORICAL
 COLS = NUMERIC + CATEGORICAL
 
 
-# Fits the tuned model on all available data and writes its artifacts.
+# Builds the model and metadata, or refreshes only the approval policy.
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Build the model and its approval policy.")
+    parser.add_argument(
+        "--policy-only", action="store_true",
+        help="Update existing approval metadata without refitting the model.",
+    )
+    args = parser.parse_args()
+
     df = load_loans()
     train, val, test = out_of_time_split(df)
+
+    # Matches notebook 25: estimate the threshold before the final test period.
+    reference = pd.concat([train, val])
+    r_bar = (reference["int_rate"] * reference["loan_amnt"]).sum() / reference["loan_amnt"].sum()
+    policy = {
+        "name": "single_break_even",
+        "threshold": float(breakeven_probability(r_bar)),
+        "reference": "train+val",
+        "amount_weighted_int_rate": float(r_bar),
+        "n_reference_rows": len(reference),
+    }
+
+    if args.policy_only:
+        meta = json.loads(METADATA.read_text())
+        meta["approval_policy"] = policy
+        METADATA.write_text(json.dumps(meta, indent=2))
+        print(f"approval policy -> {METADATA}")
+        return
 
     fit_df = pd.concat([train, val, test])
 
@@ -43,6 +70,7 @@ def main() -> None:
 
     vintages = pd.to_datetime(fit_df["issue_month"])
     meta = {
+        "approval_policy": policy,
         "params": best,
         "features": COLS,
         "numeric": NUMERIC,

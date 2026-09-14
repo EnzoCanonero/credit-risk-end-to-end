@@ -10,7 +10,6 @@ import joblib
 import pandas as pd
 from sklearn.pipeline import Pipeline
 
-from credit_risk.evaluate import breakeven_probability
 from credit_risk.schema import Loan
 
 DEFAULT_MODELS = Path(__file__).resolve().parents[2] / "models"
@@ -60,9 +59,21 @@ def score(loans: pd.DataFrame) -> pd.Series:
     return pd.Series(probs, index=loans.index)
 
 
+# Applies the portfolio-wide break-even threshold stored with the model.
+def approval_decisions(probabilities: pd.Series) -> pd.Series:
+    metadata = _metadata()
+    if "approval_policy" not in metadata:
+        raise ValueError(
+            "Approval policy missing; run: python scripts/build_model.py --policy-only"
+        )
+    policy = cast(dict[str, object], metadata["approval_policy"])
+    return probabilities < cast(float, policy["threshold"])
+
+
 # Scores one loan and returns the approval decision.
 def score_one(loan: Loan) -> dict[str, float | bool]:
-    probability = float(score(pd.DataFrame([loan.model_dump()])).iloc[0])
-    approve = bool(probability < breakeven_probability(loan.int_rate))
-
-    return {"default_probability": probability, "approve": approve}
+    probabilities = score(pd.DataFrame([loan.model_dump()]))
+    return {
+        "default_probability": float(probabilities.iloc[0]),
+        "approve": bool(approval_decisions(probabilities).iloc[0]),
+    }

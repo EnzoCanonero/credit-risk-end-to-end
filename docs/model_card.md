@@ -15,9 +15,10 @@ and, above all, where it stops being trustworthy.
 
 ## Intended use
 
-- **Supports** a lending decision on 36-month consumer loans of the kind Lending Club originated:
-  turn the probability into an expected profit per loan and approve when it is positive, or apply a
-  single break-even threshold set on the training book.
+- **Supports** a demonstration lending decision on 36-month consumer loans of the kind Lending Club
+  originated: approve below the single portfolio-wide break-even probability saved in the model
+  metadata. The threshold uses the amount-weighted interest rate on training and validation,
+  as in [notebook 25](../notebooks/25_final_test.ipynb), and is shared by FastAPI, Lambda and batch scoring.
 - **Primary users** are underwriting or portfolio analysts who understand the limitations below.
 - **Not for**: a standalone yes/no oracle without the economic rule around it; applicants unlike
   Lending Club's accepted population; fair-lending, adverse-action, or causal reasoning. It ranks and
@@ -32,8 +33,9 @@ and, above all, where it stops being trustworthy.
   [notebook 22](../notebooks/22_validation.ipynb) uses an internal split of training and validation
   loans, excluding the final test period.
 - **Shipped artifact.** Refit on all available data (708,368 loans, vintages 2007-06 to 2016-03)
-  after the final evaluation, so the deployed model is not the exact object the numbers below
-  describe; those describe the same configuration fit on train and validation only.
+  after the final evaluation, so the served model is not the exact object the numbers below
+  describe; those describe the same configuration fit on train and validation only. The approval
+  threshold is calculated on training and validation, excluding test loans.
 - **Leakage discipline.** Post-origination columns (payments, recoveries, last FICO) are excluded in
   SQL when the modelling table is built, so no feature encodes the outcome.
 
@@ -57,10 +59,11 @@ Historical held-out test set:
 | log-loss | 0.395 |
 
 In currency, on realised test outcomes, three decision policies finish within a few percent of each
-other: approving everything (124.9M), a single break-even threshold (129.9M), and per-loan expected
+other: approving everything (124.9M), a single break-even threshold (129.8M), and per-loan expected
 profit (126.5M). On this pre-screened book the approve-or-reject decision is worth only a few
-percent, and a single threshold captures it. Per-loan pricing does slightly worse, because it trusts
-probabilities that lean low on the newest vintage (see Calibration).
+percent, and a single threshold captures it. Underestimated default probabilities and favourable
+payoff assumptions both contribute to the per-loan rule's lower profit (see the
+[test diagnostics](../notebooks/25_final_test.ipynb)).
 
 ## Calibration
 
@@ -86,9 +89,9 @@ results. The current artifact and metrics remain uncalibrated.
 - **Calibration.** The model underpredicts average risk by about two percentage points on both
   temporal evaluation blocks. Without a separate calibration window, the PD and currency outputs
   should be treated as approximate rather than prospectively calibrated estimates.
-- **Economic assumptions.** The pricing assumes no discounting (a euro at month 36 counts as a euro
-  today), past recovery behaviour, and a break-even set on the training book. The figures hold only
-  while pricing and recoveries behave as they did.
+- **Economic assumptions.** The pricing assumes no discounting (a dollar at month 36 counts as a
+  dollar today), past recovery behaviour, and a break-even threshold based on the training and
+  validation book's rate. The figures hold only while pricing and recoveries behave as they did.
 - **Scope.** 36-month loans only. A 60-month extension would need either a terminal-outcome cohort
   with an additional maturity buffer, or genuine event-history data for survival modelling. Either
   design would require its own chronological calibration block rather than reuse of the 36-month
@@ -110,3 +113,6 @@ results. The current artifact and metrics remain uncalibrated.
   later test block; refit the intercept when monitored calibration-in-the-large moves materially.
 - **Rebuild** the artifact with `scripts/build_model.py` when new matured vintages are available, and
   re-run the final test before trusting new numbers.
+- **Policy metadata.** `python scripts/build_model.py --policy-only` updates the threshold and its
+  reference population without refitting the existing model. Rebuild images and update the Lambda
+  function separately to deploy the change.
